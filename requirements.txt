@@ -7,5 +7,19 @@ python-dotenv==1.0.0
 python-multipart==0.0.6
 # torch==2.7.0
 # torchvision==0.22.0
-cn-clip==1.5.1
+# cn-clip==1.5.1  # 注释掉原有的cn-clip，使用immich的实现
 RapidOCR==2.0.6
+
+# Immich机器学习模块依赖
+aiocache>=0.12.1,<1.0
+ftfy>=6.1.1
+gunicorn>=21.1.0
+huggingface-hub>=0.20.1,<1.0
+insightface>=0.7.3,<1.0
+orjson>=3.9.5
+pillow>=9.5.0,<11.0
+pydantic>=2.0.0,<3
+pydantic-settings>=2.5.2,<3
+rich>=13.4.2
+tokenizers>=0.15.0,<1.0
+onnxruntime-gpu>=1.2.0,<2  # GPU版本用于CUDA支持

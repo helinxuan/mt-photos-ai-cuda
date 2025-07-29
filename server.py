@@ -13,7 +13,8 @@ from PIL import Image, ImageFile
 from io import BytesIO
 from pydantic import BaseModel
 from rapidocr import RapidOCR  # Paddle的cuda镜像太大，改用torch，RapidOCR支持torch
-import cn_clip.clip as clip
+# import cn_clip.clip as clip  # 注释掉原有的clip导入
+from immich_adapter import immich_adapter  # 使用immich适配器
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 on_linux = sys.platform.startswith('linux')
@@ -26,12 +27,12 @@ http_port = int(os.getenv("HTTP_PORT", "8060"))
 server_restart_time = int(os.getenv("SERVER_RESTART_TIME", "300"))
 env_auto_load_txt_modal = os.getenv("AUTO_LOAD_TXT_MODAL", "off") == "on" # 是否自动加载CLIP文本模型，开启可以优化第一次搜索时的响应速度,文本模型占用700多m内存
 
-clip_model_name = os.getenv("CLIP_MODEL")
+# clip_model_name = os.getenv("CLIP_MODEL")  # 移到immich_adapter中管理
 
 
 ocr_model = None
-clip_processor = None
-clip_model = None
+# clip_processor = None  # 不再需要，使用immich适配器
+# clip_model = None  # 不再需要，使用immich适配器
 
 restart_task = None
 restart_lock = asyncio.Lock()
@@ -54,13 +55,14 @@ def load_ocr_model():
         # https://rapidai.github.io/RapidOCRDocs/main/install_usage/rapidocr/usage/
 
 def load_clip_model():
-    global clip_processor
-    global clip_model
-    if clip_processor is None:
-        model, preprocess = clip.load_from_name(clip_model_name, device=device)
-        model.eval()
-        clip_model = model
-        clip_processor = preprocess
+    """预加载CLIP模型 - 使用immich适配器"""
+    try:
+        # 预加载视觉和文本模型
+        immich_adapter.load_clip_visual_model()
+        if env_auto_load_txt_modal:
+            immich_adapter.load_clip_textual_model()
+    except Exception as e:
+        print(f"Error loading CLIP models: {e}")
 
 @app.on_event("startup")
 async def startup_event():
@@ -201,22 +203,42 @@ async def process_image(file: UploadFile = File(...), api_key: str = Depends(ver
 
 @app.post("/clip/img")
 async def clip_process_image(file: UploadFile = File(...), api_key: str = Depends(verify_header)):
-    load_clip_model()
     image_bytes = await file.read()
     try:
-        image = clip_processor(Image.open(BytesIO(image_bytes))).unsqueeze(0).to(device)
-        image_features = clip_model.encode_image(image)
-        return {'result': ["{:.16f}".format(vec) for vec in image_features[0]]}
+        # 使用immich适配器进行图像编码
+        result = await asyncio.get_running_loop().run_in_executor(
+            None, immich_adapter.encode_image, image_bytes
+        )
+        return {'result': result}
     except Exception as e:
         print(e)
         return {'result': [], 'msg': str(e)}
 
 @app.post("/clip/txt")
 async def clip_process_txt(request:ClipTxtRequest, api_key: str = Depends(verify_header)):
-    load_clip_model()
-    text = clip.tokenize([request.text]).to(device)
-    text_features = clip_model.encode_text(text)
-    return {'result': ["{:.16f}".format(vec) for vec in text_features[0]]}
+    try:
+        # 使用immich适配器进行文本编码
+        result = await asyncio.get_running_loop().run_in_executor(
+            None, immich_adapter.encode_text, request.text
+        )
+        return {'result': result}
+    except Exception as e:
+        print(e)
+        return {'result': [], 'msg': str(e)}
+
+@app.post("/face/detect")
+async def face_detect(file: UploadFile = File(...), api_key: str = Depends(verify_header)):
+    """人脸检测和识别API"""
+    image_bytes = await file.read()
+    try:
+        # 使用immich适配器进行人脸检测和识别
+        result = await asyncio.get_running_loop().run_in_executor(
+            None, immich_adapter.detect_faces, image_bytes
+        )
+        return {'result': result}
+    except Exception as e:
+        print(e)
+        return {'result': {'faces': [], 'detection': {'boxes': [], 'scores': [], 'landmarks': []}}, 'msg': str(e)}
 
 async def predict(predict_func, inputs):
     return await asyncio.get_running_loop().run_in_executor(None, predict_func, inputs)
