@@ -12,7 +12,7 @@ import torch
 from PIL import Image, ImageFile
 from io import BytesIO
 from pydantic import BaseModel
-from rapidocr import RapidOCR  # Paddle的cuda镜像太大，改用torch，RapidOCR支持torch
+from rapidocr import EngineType, RapidOCR  # Paddle的cuda镜像太大，改用torch，RapidOCR支持torch
 # import cn_clip.clip as clip  # 注释掉原有的clip导入
 from immich_adapter import immich_adapter  # 使用immich适配器
 ImageFile.LOAD_TRUNCATED_IMAGES = True
@@ -47,7 +47,9 @@ def load_ocr_model():
     if ocr_model is None:
         ocr_model = RapidOCR(
             params={
-                "Global.with_torch": True,
+                "Det.engine_type": EngineType.TORCH,
+                "Cls.engine_type": EngineType.TORCH,
+                "Rec.engine_type": EngineType.TORCH,
                 "EngineConfig.torch.use_cuda": torch.cuda.is_available(),  # 使用torch GPU版推理
                 # "EngineConfig.torch.gpu_id": 0,  # 指定GPU id
             }
