@@ -13,7 +13,7 @@ RapidOCR==2.0.6
 # Immich机器学习模块依赖
 aiocache>=0.12.1,<1.0
 ftfy>=6.1.1
-gunicorn>=21.1.0
+gunicorn==23.0.0
 huggingface-hub>=0.20.1,<1.0
 insightface>=0.7.3,<1.0
 orjson>=3.9.5

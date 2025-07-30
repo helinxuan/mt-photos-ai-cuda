@@ -78,7 +78,7 @@ class ImmichAdapter:
             # 将bytes转换为PIL Image
             image = Image.open(BytesIO(image_data))
             # 使用immich模型进行预测
-            result = model._predict(image)
+            result = model.predict(image)
             # 解析序列化的numpy数组
             features = orjson.loads(result)
             # 转换为字符串格式，保持与原API兼容
@@ -92,7 +92,7 @@ class ImmichAdapter:
         try:
             model = self.load_clip_textual_model()
             # 使用immich模型进行预测
-            result = model._predict(text)
+            result = model.predict(text)
             # 解析序列化的numpy数组
             features = orjson.loads(result)
             # 转换为字符串格式，保持与原API兼容
