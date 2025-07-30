@@ -1,22 +1,37 @@
-# MT-Photos AI CUDA
+# MT-Photos AI with Immich Integration
 
-基于 CUDA 的 MT-Photos AI 服务，提供图像识别、人脸检测和 OCR 功能，由于 Immich 效果好些，移植了人脸和clip过来。
+本项目将 [Immich](https://github.com/immich-app/immich) 的机器学习模块集成到 [MT-Photos AI](https://github.com/MT-Photos/mt-photos-ai) 中，提供更优秀的 CLIP 和人脸识别功能，并支持 CUDA 12.9 GPU 加速。
 
-## 项目介绍
+## 功能特性
 
-本项目是一个高性能的 AI 服务，专为 MT-Photos 照片管理系统设计，集成了以下功能：
-
-- **CLIP 图像特征提取**：支持多语言图像搜索
-- **人脸检测与识别**：基于 Immich 的人脸识别技术
-- **OCR 文字识别**：使用 RapidOCR 进行图像文字提取
-- **GPU 加速**：完整支持 CUDA 12.9 加速推理
+- ✅ **CLIP 图像编码**: 使用 Immich 的高质量 CLIP 模型进行图像特征提取
+- ✅ **CLIP 文本编码**: 支持多语言文本特征提取
+- ✅ **人脸检测**: 基于 InsightFace 的高精度人脸检测
+- ✅ **人脸识别**: 人脸特征提取和识别
+- ✅ **OCR 文本识别**: 保持原有的 RapidOCR 功能
+- ✅ **API 兼容性**: 完全兼容原 MT-Photos AI 的 API 接口
+- ✅ **GPU 加速**: 完整支持 CUDA 12.9 加速推理
 
 ## 参考项目
 
-- [XiaoranQingxue/mt-ai](https://github.com/XiaoranQingxue/mt-ai)
-- [MT-Photos/mt-photos-ai](https://github.com/MT-Photos/mt-photos-ai)
+- [Immich](https://github.com/immich-app/immich) - 高性能自托管照片和视频管理解决方案
+- [MT-Photos AI](https://github.com/MT-Photos/mt-photos-ai) - MT Photos AI 识别服务
+- [XiaoranQingxue/mt-ai](https://github.com/XiaoranQingxue/mt-ai) - 参考实现
 - [MT-Photos/mt-photos-deepface](https://github.com/MT-Photos/mt-photos-deepface)
-- [immich-app/immich](https://github.com/immich-app/immich)
+
+## 项目结构
+
+```
+e:\mt-photos-ai-cuda\
+├── machine-learning/          # Immich 机器学习模块
+├── immich_adapter.py         # Immich 适配器
+├── server.py                 # 主服务文件 (已修改)
+├── requirements.txt          # Python 依赖 (已更新)
+├── .env                     # 环境配置文件
+├── .env.example             # 配置模板
+├── Dockerfile               # Docker 构建文件
+└── cache/                   # 模型缓存目录
+```
 
 ## 系统要求
 
@@ -96,39 +111,43 @@ cp .env.example .env
 主要配置项：
 
 ```bash
+# 基本配置
+API_AUTH_KEY=mt_photos_ai_extra
+HTTP_PORT=3004
+
 # CLIP 模型配置
 CLIP_MODEL_NAME=nllb-clip-large-siglip__v1
 
-# 人脸识别模型
+# 人脸识别配置
 FACE_MODEL_NAME=antelopev2
 FACE_THRESHOLD=0.7
 
 # 模型缓存目录
 MACHINE_LEARNING_CACHE_FOLDER=/model-cache
 
-# 模型TTL（秒，0表示不自动卸载）
+# 性能配置
 MODEL_TTL=300
+AUTO_LOAD_TXT_MODAL=off
 
 # 日志级别
 LOG_LEVEL=INFO
 
-# 服务端口
-HTTP_PORT=3004
-
-# API 认证密钥
-API_AUTH_KEY=mt_photos_ai_extra
+# 服务重启时间间隔 (秒)
+SERVER_RESTART_TIME=300
 ```
 
 ### 模型选择
 
 #### CLIP 模型选项：
 - `nllb-clip-large-siglip__v1`（推荐，多语言支持）
-- `XLM-Roberta-Large-Vit-B-16Plus`
-- `XLM-Roberta-Large-ViT-H-14__frozen_laion5b_s13b_b90k`
+- `XLM-Roberta-Large-Vit-B-16Plus`（默认，多语言支持）
+- `ViT-B-32::openai`
+- `ViT-B-16::openai`
+- `nllb-clip-base-siglip__mrl`
 
 #### 人脸识别模型选项：
-- `antelopev2`（推荐）
-- `buffalo_l`
+- `antelopev2`（推荐，高精度）
+- `buffalo_l`（较快速度）
 
 ## 启动服务
 
@@ -162,60 +181,99 @@ docker run -d \
   mt-photos-ai-cuda
 ```
 
+或使用 docker-compose：
+
+```yaml
+version: "3"
+services:
+  mtphotos_ai:
+    build: .
+    container_name: mt-ai-immich
+    restart: always
+    ports:
+      - 3004:3004
+    volumes:
+      - ./model-cache:/cache
+    environment:
+      - API_AUTH_KEY=mt_photos_ai_extra
+      - CLIP_MODEL_NAME=nllb-clip-large-siglip__v1
+      - FACE_MODEL_NAME=antelopev2
+      - FACE_THRESHOLD=0.7
+      - MODEL_TTL=300
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+```
+
 ## API 接口
 
-### 健康检查
-```
-GET /health
+### 原有接口 (保持兼容)
+
+#### 1. 健康检查
+```bash
+curl -X POST "http://localhost:3004/check" \
+  -H "api-key: mt_photos_ai_extra"
 ```
 
-### CLIP 图像特征提取
-```
-POST /clip/img
-Content-Type: multipart/form-data
-Authorization: Bearer <API_AUTH_KEY>
-
-Body: image file
+#### 2. OCR 文本识别
+```bash
+curl -X POST "http://localhost:3004/ocr" \
+  -H "api-key: mt_photos_ai_extra" \
+  -F "file=@image.jpg"
 ```
 
-### CLIP 文本特征提取
-```
-POST /clip/txt
-Content-Type: application/json
-Authorization: Bearer <API_AUTH_KEY>
-
-Body: {"text": "搜索文本"}
+#### 3. CLIP 图像编码
+```bash
+curl -X POST "http://localhost:3004/clip/img" \
+  -H "api-key: mt_photos_ai_extra" \
+  -F "file=@image.jpg"
 ```
 
-### 人脸检测
+#### 4. CLIP 文本编码
+```bash
+curl -X POST "http://localhost:3004/clip/txt" \
+  -H "Content-Type: application/json" \
+  -H "api-key: mt_photos_ai_extra" \
+  -d '{"text":"飞机"}'
 ```
-POST /face
-Content-Type: multipart/form-data
-Authorization: Bearer <API_AUTH_KEY>
 
-Body: image file
-```
+### 新增接口
 
-### OCR 文字识别
-```
-POST /ocr
-Content-Type: multipart/form-data
-Authorization: Bearer <API_AUTH_KEY>
-
-Body: image file
+#### 5. 人脸检测和识别
+```bash
+curl -X POST "http://localhost:3004/face/detect" \
+  -H "api-key: mt_photos_ai_extra" \
+  -F "file=@image.jpg"
 ```
 
 ## 性能优化
 
-### GPU 内存优化
-- 调整 `MODEL_TTL` 参数控制模型缓存时间
+### 内存管理
+- 设置 `MODEL_TTL` 来自动卸载模型释放内存
+- 设置 `AUTO_LOAD_TXT_MODAL=on` 来预加载文本模型（占用更多内存但响应更快）
 - 根据 GPU 显存大小选择合适的模型
-- 使用 `AUTO_LOAD_TXT_MODAL=off` 减少内存占用
+
+### GPU 支持
+- 自动检测 CUDA 可用性
+- 使用 `onnxruntime-gpu` 进行 GPU 加速
+- 确保 PyTorch 与 CUDA 12.9 版本兼容
 
 ### 推理速度优化
 - 确保使用 CUDA 加速
 - 批量处理图像
 - 合理设置并发数
+
+## 与 MT-Photos 集成
+
+在 MT-Photos 中配置 AI 服务地址：
+
+1. 人脸置信度建议设置为 0.55-0.70
+2. 人物匹配差异值建议设置为 0.35-0.50
+3. CLIP 向量长度根据模型自动调整
 
 ## 故障排除
 
@@ -230,14 +288,14 @@ Body: image file
    ```
 
 2. **模型下载失败**
-   - 检查网络连接
+   - 检查网络连接，模型会自动从 Hugging Face 下载
    - 手动下载模型到缓存目录
    - 使用代理或镜像源
 
 3. **内存不足**
-   - 减少并发数
-   - 调整模型 TTL
+   - 调整 `MODEL_TTL` 设置或减少并发请求
    - 使用更小的模型
+   - 减少并发数
 
 4. **端口被占用**
    ```bash
@@ -246,7 +304,13 @@ Body: image file
    # 修改 .env 中的 HTTP_PORT
    ```
 
-### 日志查看
+5. **GPU 不可用**
+   - 检查 CUDA 安装和 `onnxruntime-gpu` 版本
+   - 确保 PyTorch 与 CUDA 版本兼容
+
+### 日志调试
+
+设置 `LOG_LEVEL=DEBUG` 获取详细日志信息。
 
 ```bash
 # 查看服务日志
