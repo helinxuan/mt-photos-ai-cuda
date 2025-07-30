@@ -21,6 +21,18 @@ from immich_ml.models.transforms import decode_pil, serialize_np_array
 from immich_ml.schemas import ModelType, ModelTask
 from immich_ml.config import settings
 
+# 模型配置现在通过immich_ml.config.settings统一管理
+
+# 根据人脸模型名称确定检测器后端
+def get_detector_backend(face_model_name):
+    """根据人脸模型名称返回对应的检测器后端"""
+    if 'antelope' in face_model_name.lower():
+        return 'retinaface'
+    elif 'buffalo' in face_model_name.lower():
+        return 'retinaface'
+    else:
+        return 'retinaface'  # 默认使用retinaface
+
 class ImmichAdapter:
     """Immich机器学习模块适配器，为mtphotos提供CLIP和人脸识别功能"""
     
@@ -30,10 +42,10 @@ class ImmichAdapter:
         self.face_detector = None
         self.face_recognizer = None
         
-        # 从环境变量获取模型配置
-        self.clip_model_name = os.getenv("CLIP_MODEL_NAME", "XLM-Roberta-Large-Vit-B-16Plus")
-        self.face_model_name = os.getenv("FACE_MODEL_NAME", "antelopev2")
-        self.face_threshold = float(os.getenv("FACE_THRESHOLD", "0.7"))
+        # 从config.py的settings获取模型配置
+        self.clip_model_name = settings.clip_model_name
+        self.face_model_name = settings.face_model_name
+        self.face_threshold = settings.face_threshold
         
     def load_clip_visual_model(self):
         """加载CLIP视觉编码器"""
@@ -138,52 +150,91 @@ class ImmichAdapter:
             
             # 人脸检测 - 使用predict方法而不是_predict
             detection_result = detector.predict(img)
+            logger.info(f"Detection result: boxes shape={detection_result['boxes'].shape}, scores shape={detection_result['scores'].shape}")
+            logger.info(f"Detection result types: boxes type={type(detection_result['boxes'])}, scores type={type(detection_result['scores'])}")
             
             # 如果检测到人脸，进行人脸识别
             if detection_result["boxes"].shape[0] > 0:
                 recognition_result = recognizer.predict(img, detection_result)
+                logger.info(f"Recognition result type: {type(recognition_result)}, length: {len(recognition_result)}")
+                if len(recognition_result) > 0:
+                    logger.info(f"First recognition result: {type(recognition_result[0])}, keys: {recognition_result[0].keys() if isinstance(recognition_result[0], dict) else 'not dict'}")
                 
                 # 转换为MT-Photos兼容格式，确保所有numpy类型都转换为Python原生类型
                 faces = []
                 for i, face_data in enumerate(recognition_result):
-                    # 获取边界框
-                    box = detection_result["boxes"][i]
-                    landmarks = detection_result["landmarks"][i] if "landmarks" in detection_result else None
-                    
-                    face_obj = {
-                        "embedding": face_data.tolist() if hasattr(face_data, 'tolist') else list(face_data),
-                        "facial_area": {
-                            "x": int(box[0]),
-                            "y": int(box[1]), 
-                            "w": int(box[2] - box[0]),
-                            "h": int(box[3] - box[1]),
-                            "left_eye": [int(landmarks[0]), int(landmarks[1])] if landmarks is not None else None,
-                            "right_eye": [int(landmarks[2]), int(landmarks[3])] if landmarks is not None else None
-                        },
-                        "face_confidence": float(detection_result["scores"][i])
-                    }
-                    faces.append(face_obj)
+                    logger.info(f"Processing face {i}: type={type(face_data)}, data={face_data}")
+                    # recognition_result返回的是DetectedFace字典格式
+                    # 需要从embedding字符串中解析出numpy数组
+                    try:
+                        # face_data是字典，包含boundingBox, embedding(字符串), score
+                        embedding_str = face_data["embedding"]
+                        # 解析embedding字符串为numpy数组，然后转为列表
+                        embedding_array = orjson.loads(embedding_str)
+                        embedding_list = embedding_array.tolist() if hasattr(embedding_array, 'tolist') else list(embedding_array)
+                        
+                        # 使用boundingBox信息
+                        bbox = face_data["boundingBox"]
+                        logger.info(f"Bbox for face {i}: type={type(bbox)}, data={bbox}")
+                        
+                        # 获取landmarks信息（眼部坐标）
+                        landmarks = detection_result["landmarks"][i] if "landmarks" in detection_result and i < len(detection_result["landmarks"]) else None
+                        left_eye = None
+                        right_eye = None
+                        if landmarks is not None and len(landmarks) >= 4:
+                            # landmarks格式通常是 [left_eye_x, left_eye_y, right_eye_x, right_eye_y, ...]
+                            # 需要先转换numpy数组元素为Python标量
+                            logger.info(f"Landmarks for face {i}: type={type(landmarks)}, shape={landmarks.shape if hasattr(landmarks, 'shape') else 'no shape'}, data={landmarks}")
+                            # 如果landmarks是多维数组，需要flatten
+                            if hasattr(landmarks, 'flatten'):
+                                landmarks_flat = landmarks.flatten()
+                            else:
+                                landmarks_flat = landmarks
+                            
+                            # 确保有足够的坐标点
+                            if len(landmarks_flat) >= 4:
+                                left_eye = [int(landmarks_flat[0]), int(landmarks_flat[1])]
+                                right_eye = [int(landmarks_flat[2]), int(landmarks_flat[3])]
+                        
+                        face_obj = {
+                            "embedding": embedding_list,
+                            "facial_area": {
+                                "x": int(bbox["x1"].item() if hasattr(bbox["x1"], 'item') else bbox["x1"]),
+                                "y": int(bbox["y1"].item() if hasattr(bbox["y1"], 'item') else bbox["y1"]), 
+                                "w": int((bbox["x2"] - bbox["x1"]).item() if hasattr(bbox["x2"], 'item') else (bbox["x2"] - bbox["x1"])),
+                                "h": int((bbox["y2"] - bbox["y1"]).item() if hasattr(bbox["y2"], 'item') else (bbox["y2"] - bbox["y1"])),
+                                "left_eye": left_eye,
+                                "right_eye": right_eye
+                            },
+                            "face_confidence": float(face_data["score"])
+                        }
+                        faces.append(face_obj)
+                    except Exception as e:
+                        logger.error(f"Error processing face data {i}: {e}")
+                        logger.error(f"Face data details: {face_data}")
+                        logger.error(f"Detection result details: boxes={detection_result['boxes'][i] if i < len(detection_result['boxes']) else 'index out of range'}")
+                        import traceback
+                        logger.error(f"Full traceback: {traceback.format_exc()}")
+                        continue
                 
                 return {
-                    "faces": faces,
-                    "detection": {
-                        "boxes": detection_result["boxes"].tolist(),
-                        "scores": detection_result["scores"].tolist(),
-                        "landmarks": detection_result["landmarks"].tolist() if "landmarks" in detection_result else []
-                    }
+                    "detector_backend": get_detector_backend(self.face_model_name),
+                    "recognition_model": self.face_model_name, 
+                    "result": faces
                 }
             else:
                 return {
-                    "faces": [],
-                    "detection": {
-                        "boxes": [],
-                        "scores": [],
-                        "landmarks": []
-                    }
+                    "detector_backend": get_detector_backend(self.face_model_name),
+                    "recognition_model": self.face_model_name,
+                    "result": []
                 }
         except Exception as e:
             logger.error(f"Face detection error: {e}")
-            return {"faces": [], "detection": {"boxes": [], "scores": [], "landmarks": []}}
+            return {
+                "detector_backend": get_detector_backend(self.face_model_name),
+                "recognition_model": self.face_model_name,
+                "result": []
+            }
 
 # 全局适配器实例
 immich_adapter = ImmichAdapter()

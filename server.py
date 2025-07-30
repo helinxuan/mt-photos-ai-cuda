@@ -1,6 +1,7 @@
 from dotenv import load_dotenv
 import os
 import sys
+from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, File, UploadFile, HTTPException, Header
 from fastapi.responses import HTMLResponse
 import uvicorn
@@ -15,16 +16,20 @@ from io import BytesIO
 from pydantic import BaseModel
 from rapidocr import EngineType, RapidOCR  # Paddle的cuda镜像太大，改用torch，RapidOCR支持torch
 # import cn_clip.clip as clip  # 注释掉原有的clip导入
-from immich_adapter import immich_adapter  # 使用immich适配器
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 on_linux = sys.platform.startswith('linux')
 
+# 必须在导入immich_adapter之前加载.env文件
 load_dotenv()
-app = FastAPI()
+from immich_adapter import immich_adapter  # 使用immich适配器
 
 # 配置日志
 logger = logging.getLogger("uvicorn")
+# 设置日志级别
+log_level_str = os.getenv("LOG_LEVEL", "INFO").upper()
+log_level = getattr(logging, log_level_str, logging.INFO)
+logger.setLevel(log_level)
 
 api_auth_key = os.getenv("API_AUTH_KEY", "mt_photos_ai_extra")
 http_port = int(os.getenv("HTTP_PORT", "8060"))
@@ -75,9 +80,9 @@ def load_clip_model():
     except Exception as e:
         print(f"Error loading CLIP models: {e}")
 
-@app.on_event("startup")
-async def startup_event():
-    # 输出启动信息
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # 启动事件
     import onnxruntime as ort
     logger.info("Using rapidocr_onnxruntime")
     logger.info(f"LOG_LEVEL: {os.getenv('LOG_LEVEL', 'ERROR')}")
@@ -99,15 +104,19 @@ async def startup_event():
     if env_auto_load_txt_modal:
         load_clip_model()
         logger.info("Auto-loaded CLIP text model")
-
-@app.on_event("shutdown")
-async def on_shutdown():
+    
+    yield
+    
+    # 关闭事件
     if restart_task and not restart_task.done():
         restart_task.cancel()
         try:
             await restart_task
         except asyncio.CancelledError:
             pass
+
+# 创建 FastAPI 应用实例
+app = FastAPI(lifespan=lifespan)
 
 async def restart_timer():
     await asyncio.sleep(server_restart_time)
@@ -340,9 +349,9 @@ def _immich_represent(image_bytes):
     """使用Immich适配器进行人脸特征提取"""
     try:
         face_result = immich_adapter.detect_faces(image_bytes)
-        # 直接返回faces数组，保持与DeepFace.represent格式兼容
-        if face_result and 'faces' in face_result:
-            return face_result['faces']
+        # 直接返回result数组，保持与DeepFace.represent格式兼容
+        if face_result and 'result' in face_result:
+            return face_result['result']
         return []
     except Exception as e:
         logger.error(f"Immich face representation error: {e}")

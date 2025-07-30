@@ -51,23 +51,29 @@ class Settings(BaseSettings):
         protected_namespaces=("settings_",),
     )
 
-    cache_folder: Path = (Path.home() / ".cache" / "immich_ml").resolve()
-    model_ttl: int = 300
-    model_ttl_poll_s: int = 10
-    workers: int = 1
-    worker_timeout: int = 300
-    http_keepalive_timeout_s: int = 2
-    test_full: bool = False
-    request_threads: int = os.cpu_count() or 4
-    model_inter_op_threads: int = 0
-    model_intra_op_threads: int = 0
-    ann: bool = True
-    ann_fp16_turbo: bool = False
-    ann_tuning_level: int = 2
-    rknn: bool = True
-    rknn_threads: int = 1
+    cache_folder: Path = Path(os.getenv("MACHINE_LEARNING_CACHE_FOLDER", str((Path.home() / ".cache" / "immich_ml").resolve()))).resolve()
+    model_ttl: int = int(os.getenv("MODEL_TTL", "300"))
+    model_ttl_poll_s: int = int(os.getenv("MACHINE_LEARNING_MODEL_TTL_POLL_S", "10"))
+    workers: int = int(os.getenv("MACHINE_LEARNING_WORKERS", "1"))
+    worker_timeout: int = int(os.getenv("MACHINE_LEARNING_WORKER_TIMEOUT", "300"))
+    http_keepalive_timeout_s: int = int(os.getenv("MACHINE_LEARNING_HTTP_KEEPALIVE_TIMEOUT_S", "2"))
+    test_full: bool = os.getenv("MACHINE_LEARNING_TEST_FULL", "false").lower() in ("true", "1", "yes")
+    request_threads: int = int(os.getenv("MACHINE_LEARNING_REQUEST_THREADS", str(os.cpu_count() or 4)))
+    model_inter_op_threads: int = int(os.getenv("MACHINE_LEARNING_MODEL_INTER_OP_THREADS", "0"))
+    model_intra_op_threads: int = int(os.getenv("MACHINE_LEARNING_MODEL_INTRA_OP_THREADS", "0"))
+    ann: bool = os.getenv("MACHINE_LEARNING_ANN", "true").lower() in ("true", "1", "yes")
+    ann_fp16_turbo: bool = os.getenv("MACHINE_LEARNING_ANN_FP16_TURBO", "false").lower() in ("true", "1", "yes")
+    ann_tuning_level: int = int(os.getenv("MACHINE_LEARNING_ANN_TUNING_LEVEL", "2"))
+    rknn: bool = os.getenv("MACHINE_LEARNING_RKNN", "true").lower() in ("true", "1", "yes")
+    rknn_threads: int = int(os.getenv("MACHINE_LEARNING_RKNN_THREADS", "1"))
     preload: PreloadModelData | None = None
     max_batch_size: MaxBatchSize | None = None
+    
+    # CLIP模型配置 - 从CLIP_MODEL_NAME环境变量读取
+    clip_model_name: str = os.getenv("CLIP_MODEL_NAME", "XLM-Roberta-Large-Vit-B-16Plus")
+    # 人脸识别模型配置
+    face_model_name: str = os.getenv("FACE_MODEL_NAME", "antelopev2")
+    face_threshold: float = float(os.getenv("FACE_THRESHOLD", "0.7"))
 
     @property
     def device_id(self) -> str:
@@ -79,7 +85,7 @@ class NonPrefixedSettings(BaseSettings):
 
     immich_host: str = "[::]"
     immich_port: int = 3003
-    immich_log_level: str = "info"
+    immich_log_level: str = os.getenv("LOG_LEVEL", "info")
     no_color: bool = False
 
 
