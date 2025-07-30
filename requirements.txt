@@ -5,7 +5,7 @@ opencv_python_headless==4.6.0.66
 uvicorn==0.23.2
 python-dotenv==1.0.0
 python-multipart==0.0.6
-# torch==2.7.0
+# 手动安装 torch==2.7.0
 # torchvision==0.22.0
 # cn-clip==1.5.1  # 注释掉原有的cn-clip，使用immich的实现
 RapidOCR==2.0.6

@@ -7,6 +7,7 @@ import uvicorn
 import numpy as np
 import cv2
 import asyncio
+import logging
 # from paddleocr import PaddleOCR
 import torch
 from PIL import Image, ImageFile
@@ -21,6 +22,9 @@ on_linux = sys.platform.startswith('linux')
 
 load_dotenv()
 app = FastAPI()
+
+# 配置日志
+logger = logging.getLogger("uvicorn")
 
 api_auth_key = os.getenv("API_AUTH_KEY", "mt_photos_ai_extra")
 http_port = int(os.getenv("HTTP_PORT", "8060"))
@@ -45,6 +49,7 @@ class ClipTxtRequest(BaseModel):
 def load_ocr_model():
     global ocr_model
     if ocr_model is None:
+        logger.info("Loading OCR model 'rapidocr_onnxruntime' to memory")
         ocr_model = RapidOCR(
             params={
                 "Det.engine_type": EngineType.TORCH,
@@ -54,6 +59,10 @@ def load_ocr_model():
                 # "EngineConfig.torch.gpu_id": 0,  # 指定GPU id
             }
         )
+        if torch.cuda.is_available():
+            logger.info("Setting execution providers to ['CUDAExecutionProvider', 'CPUExecutionProvider'], in descending order of preference")
+        else:
+            logger.info("Setting execution providers to ['CPUExecutionProvider'], in descending order of preference")
         # https://rapidai.github.io/RapidOCRDocs/main/install_usage/rapidocr/usage/
 
 def load_clip_model():
@@ -68,8 +77,28 @@ def load_clip_model():
 
 @app.on_event("startup")
 async def startup_event():
+    # 输出启动信息
+    import onnxruntime as ort
+    logger.info("Using rapidocr_onnxruntime")
+    logger.info(f"LOG_LEVEL: {os.getenv('LOG_LEVEL', 'ERROR')}")
+    logger.info(f"MODEL_TTL: {os.getenv('MODEL_TTL', '0')}")
+    logger.info(f"FACE_MODEL_NAME: {immich_adapter.face_model_name}")
+    logger.info(f"CLIP_MODEL_NAME: {immich_adapter.clip_model_name}")
+    logger.info(f"FACE_THRESHOLD: {immich_adapter.face_threshold}")
+    logger.info(f"DEVICE: {device}")
+    logger.info(f"CUDA_AVAILABLE: {torch.cuda.is_available()}")
+    # 输出ONNX Runtime执行提供程序信息
+    available_providers = ort.get_available_providers()
+
+    logger.info(f"ONNX_PROVIDERS: {available_providers}")
+    # 检查CUDA执行提供程序
+    if 'CUDAExecutionProvider' in available_providers:
+        logger.info(f"CUDA_RUNTIME: Available")
+    else:
+        logger.info(f"CUDA_RUNTIME: Not Available")
     if env_auto_load_txt_modal:
         load_clip_model()
+        logger.info("Auto-loaded CLIP text model")
 
 @app.on_event("shutdown")
 async def on_shutdown():
@@ -189,6 +218,7 @@ async def check_req(api_key: str = Depends(verify_header)):
 
 @app.post("/ocr")
 async def process_image(file: UploadFile = File(...), api_key: str = Depends(verify_header)):
+    logger.info(f"ocr_process_image Received {file.content_type} file: {file.filename}")
     load_ocr_model()
     image_bytes = await file.read()
     try:
@@ -202,53 +232,61 @@ async def process_image(file: UploadFile = File(...), api_key: str = Depends(ver
         result = convert_rapidocr_to_json(_result)
         del img
         del _result
+        logger.info(f"OCR processing completed for {file.filename}, result count: {len(result)}")
         return {'result': result}
     except Exception as e:
-        print(e)
+        logger.error(f"OCR processing error: {e}")
         return {'result': [], 'msg': str(e)}
 
 @app.post("/clip/img")
 async def clip_process_image(file: UploadFile = File(...), api_key: str = Depends(verify_header)):
+    logger.info(f"clip_process_image Received {file.content_type} file: {file.filename}")
     image_bytes = await file.read()
     try:
         # 使用immich适配器进行图像编码
         result = await asyncio.get_running_loop().run_in_executor(
             None, immich_adapter.encode_image, image_bytes
         )
+        logger.info(f"CLIP image processing completed for {file.filename}, result: {result[:3] if len(result) > 3 else result}...")
         return {'result': result}
     except Exception as e:
-        print(e)
+        logger.error(f"CLIP image processing error: {e}")
         return {'result': [], 'msg': str(e)}
 
 @app.post("/clip/txt")
 async def clip_process_txt(request:ClipTxtRequest, api_key: str = Depends(verify_header)):
+    logger.info(f"clip_process_text Received text query: {request.text[:50]}...")
     try:
         # 使用immich适配器进行文本编码
         result = await asyncio.get_running_loop().run_in_executor(
             None, immich_adapter.encode_text, request.text
         )
+        logger.info(f"CLIP text processing completed, result: {result[:3] if len(result) > 3 else result}...")
         return {'result': result}
     except Exception as e:
-        print(e)
+        logger.error(f"CLIP text processing error: {e}")
         return {'result': [], 'msg': str(e)}
 
 @app.post("/face/detect")
 async def face_detect(file: UploadFile = File(...), api_key: str = Depends(verify_header)):
     """人脸检测和识别API - 使用Immich"""
+    logger.info(f"face_detect Received {file.content_type} file: {file.filename}")
     image_bytes = await file.read()
     try:
         # 使用immich适配器进行人脸检测和识别
         result = await asyncio.get_running_loop().run_in_executor(
             None, immich_adapter.detect_faces, image_bytes
         )
+        logger.info(f"Face detection completed for {file.filename}, faces found: {len(result.get('faces', []))}")
         return {'result': result}
     except Exception as e:
-        print(e)
+        logger.error(f"Face detection error: {e}")
         return {'result': {'faces': [], 'detection': {'boxes': [], 'scores': [], 'landmarks': []}}, 'msg': str(e)}
 
 @app.post("/represent")
 async def face_represent(file: UploadFile = File(...), api_key: str = Depends(verify_header)):
     """人脸特征提取API - 兼容MT-Photos格式，使用Immich后端"""
+    logger.info(f"face_represent Received {file.content_type} file: {file.filename}")
     content_type = file.content_type
     image_bytes = await file.read()
     
@@ -270,7 +308,7 @@ async def face_represent(file: UploadFile = File(...), api_key: str = Depends(ve
         
         if img is None:
             err = f"The uploaded file {file.filename} is not a valid image format or is corrupted."
-            print(err)
+            logger.error(err)
             return {'result': [], 'msg': str(err)}
         
         height, width, _ = img.shape
@@ -289,12 +327,13 @@ async def face_represent(file: UploadFile = File(...), api_key: str = Depends(ve
         
         del img
         data["result"] = embedding_objs
+        logger.info(f"Face representation completed for {file.filename}, embeddings count: {len(embedding_objs)}")
         return data
         
     except Exception as e:
         if 'set enforce_detection' in str(e):
             return {'result': []}
-        print(e)
+        logger.error(f"Face representation error: {e}")
         return {'result': [], 'msg': str(e)}
 
 def _immich_represent(image_bytes):
@@ -306,7 +345,7 @@ def _immich_represent(image_bytes):
             return face_result['faces']
         return []
     except Exception as e:
-        print(f"Immich face representation error: {e}")
+        logger.error(f"Immich face representation error: {e}")
         return []
 
 async def predict(predict_func, inputs):
