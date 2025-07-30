@@ -165,9 +165,13 @@ async def top_info():
 async def check_req(api_key: str = Depends(verify_header)):
     return {
         'result': 'pass',
-        "title": "mt-photos-ai服务",
+        "title": "mt-photos-ai服务 (集成Immich)",
         "help": "https://mtmt.tech/docs/advanced/ocr_api",
-        "device": device
+        "device": device,
+        "face_model": immich_adapter.face_model_name,
+        "clip_model": immich_adapter.clip_model_name,
+        "detector_backend": immich_adapter.face_model_name,
+        "recognition_model": immich_adapter.face_model_name
     }
 
 
@@ -230,7 +234,7 @@ async def clip_process_txt(request:ClipTxtRequest, api_key: str = Depends(verify
 
 @app.post("/face/detect")
 async def face_detect(file: UploadFile = File(...), api_key: str = Depends(verify_header)):
-    """人脸检测和识别API"""
+    """人脸检测和识别API - 使用Immich"""
     image_bytes = await file.read()
     try:
         # 使用immich适配器进行人脸检测和识别
@@ -241,6 +245,69 @@ async def face_detect(file: UploadFile = File(...), api_key: str = Depends(verif
     except Exception as e:
         print(e)
         return {'result': {'faces': [], 'detection': {'boxes': [], 'scores': [], 'landmarks': []}}, 'msg': str(e)}
+
+@app.post("/represent")
+async def face_represent(file: UploadFile = File(...), api_key: str = Depends(verify_header)):
+    """人脸特征提取API - 兼容MT-Photos格式，使用Immich后端"""
+    content_type = file.content_type
+    image_bytes = await file.read()
+    
+    try:
+        img = None
+        if content_type == 'image/gif':
+            # 处理GIF文件的第一帧
+            with Image.open(BytesIO(image_bytes)) as pil_img:
+                if pil_img.is_animated:
+                    pil_img.seek(0)
+                frame = pil_img.convert('RGB')
+                np_arr = np.array(frame)
+                img = cv2.cvtColor(np_arr, cv2.COLOR_RGB2BGR)
+        
+        if img is None:
+            # 处理其他图像格式
+            np_arr = np.frombuffer(image_bytes, np.uint8)
+            img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+        
+        if img is None:
+            err = f"The uploaded file {file.filename} is not a valid image format or is corrupted."
+            print(err)
+            return {'result': [], 'msg': str(err)}
+        
+        height, width, _ = img.shape
+        if width > 10000 or height > 10000:
+            return {'result': [], 'msg': 'height or width out of range'}
+        
+        data = {
+            "detector_backend": immich_adapter.face_model_name,
+            "recognition_model": immich_adapter.face_model_name
+        }
+        
+        # 使用Immich适配器进行人脸特征提取
+        embedding_objs = await asyncio.get_running_loop().run_in_executor(
+            None, _immich_represent, image_bytes
+        )
+        
+        del img
+        data["result"] = embedding_objs
+        return data
+        
+    except Exception as e:
+        if 'set enforce_detection' in str(e):
+            return {'result': []}
+        print(e)
+        return {'result': [], 'msg': str(e)}
+
+def _immich_represent(image_bytes):
+    """使用Immich适配器进行人脸特征提取"""
+    try:
+        face_result = immich_adapter.detect_faces(image_bytes)
+        # 直接返回faces数组，保持与DeepFace.represent格式兼容
+        if face_result and 'faces' in face_result:
+            return face_result['faces']
+        return []
+    except Exception as e:
+        print(f"Immich face representation error: {e}")
+        return []
 
 async def predict(predict_func, inputs):
     return await asyncio.get_running_loop().run_in_executor(None, predict_func, inputs)
