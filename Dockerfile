@@ -29,7 +29,7 @@ ENV API_AUTH_KEY=mt_photos_ai_extra
 ENV CLIP_MODEL=ViT-B-16
 
 COPY ./models/clip_cn_vit-b-16.pt /root/.cache/clip/clip_cn_vit-b-16.pt
-COPY ./models/rapidocr/ /opt/conda/lib/python3.11/site-packages/rapidocr/models/
+# PaddleOCR会自动下载所需模型，无需手动复制
 
 
 COPY server.py .

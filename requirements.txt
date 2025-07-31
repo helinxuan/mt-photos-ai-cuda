@@ -8,7 +8,9 @@ python-multipart==0.0.6
 # 手动安装 torch==2.7.0
 # torchvision==0.22.0
 # cn-clip==1.5.1  # 注释掉原有的cn-clip，使用immich的实现
-RapidOCR==2.0.6
+# PaddleOCR GPU版本依赖
+#paddlepaddle-gpu>=3.0.0  # PaddlePaddle GPU版本，支持CUDA
+paddleocr>=2.10.0  # PaddleOCR主包
 
 # Immich机器学习模块依赖
 aiocache>=0.12.1,<1.0

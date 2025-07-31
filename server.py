@@ -14,7 +14,7 @@ import torch
 from PIL import Image, ImageFile
 from io import BytesIO
 from pydantic import BaseModel
-from rapidocr import EngineType, RapidOCR  # Paddle的cuda镜像太大，改用torch，RapidOCR支持torch
+from paddleocr import PaddleOCR  # 使用PaddleOCR GPU版本
 # import cn_clip.clip as clip  # 注释掉原有的clip导入
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
@@ -54,21 +54,22 @@ class ClipTxtRequest(BaseModel):
 def load_ocr_model():
     global ocr_model
     if ocr_model is None:
-        logger.info("Loading OCR model 'rapidocr_onnxruntime' to memory")
-        ocr_model = RapidOCR(
-            params={
-                "Det.engine_type": EngineType.TORCH,
-                "Cls.engine_type": EngineType.TORCH,
-                "Rec.engine_type": EngineType.TORCH,
-                "EngineConfig.torch.use_cuda": torch.cuda.is_available(),  # 使用torch GPU版推理
-                # "EngineConfig.torch.gpu_id": 0,  # 指定GPU id
-            }
+        logger.info("Loading OCR model 'PaddleOCR' to memory")
+        ocr_model = PaddleOCR(
+            use_angle_cls=True,  # 使用角度分类器
+            lang='ch',  # 支持中文识别，也支持英文
+            use_gpu=torch.cuda.is_available(),  # 使用GPU加速
+            show_log=True,  # 显示详细日志用于调试
+            det=True,  # 启用文本检测
+            rec=True,  # 启用文本识别
+            cls=True,  # 启用文本方向分类
+            ocr_version='PP-OCRv4'  # 使用PP-OCRv4文字识别
         )
         if torch.cuda.is_available():
-            logger.info("Setting execution providers to ['CUDAExecutionProvider', 'CPUExecutionProvider'], in descending order of preference")
+            logger.info("PaddleOCR initialized with GPU acceleration")
         else:
-            logger.info("Setting execution providers to ['CPUExecutionProvider'], in descending order of preference")
-        # https://rapidai.github.io/RapidOCRDocs/main/install_usage/rapidocr/usage/
+            logger.info("PaddleOCR initialized with CPU")
+        # https://paddlepaddle.github.io/PaddleOCR/main/en/quick_start.html
 
 def load_clip_model():
     """预加载CLIP模型 - 使用immich适配器"""
@@ -84,7 +85,7 @@ def load_clip_model():
 async def lifespan(app: FastAPI):
     # 启动事件
     import onnxruntime as ort
-    logger.info("Using rapidocr_onnxruntime")
+    logger.info("Using PaddleOCR with GPU support")
     logger.info(f"LOG_LEVEL: {os.getenv('LOG_LEVEL', 'ERROR')}")
     logger.info(f"MODEL_TTL: {os.getenv('MODEL_TTL', '0')}")
     logger.info(f"FACE_MODEL_NAME: {immich_adapter.face_model_name}")
@@ -146,32 +147,98 @@ async def verify_header(api_key: str = Header(...)):
 def to_fixed(num):
     return str(round(num, 2))
 
-def convert_rapidocr_to_json(rapidocr_output):
-
-    if rapidocr_output.txts is None:
-        return {'texts': [], 'scores': [], 'boxes': []}
-
-    texts = list(rapidocr_output.txts)
-    scores = [f"{score:.2f}" for score in rapidocr_output.scores]
-    boxes_coords = rapidocr_output.boxes
-
+def convert_paddleocr_to_json(paddleocr_output):
+    texts = []
+    scores = []
     boxes = []
-    for box in boxes_coords:
-        xs = [point[0] for point in box]
-        ys = [point[1] for point in box]
-
-        x_min, x_max = min(xs), max(xs)
-        y_min, y_max = min(ys), max(ys)
-
-        width = x_max - x_min
-        height = y_max - y_min
-
-        boxes.append({
-            'x': to_fixed(x_min),
-            'y': to_fixed(y_min),
-            'width': to_fixed(width),
-            'height': to_fixed(height)
-        })
+    
+    logger.debug(f"PaddleOCR raw output: {paddleocr_output}")
+    logger.debug(f"PaddleOCR output type: {type(paddleocr_output)}")
+    
+    if not paddleocr_output or len(paddleocr_output) == 0:
+        logger.warning("PaddleOCR returned empty output")
+        return {'texts': [], 'scores': [], 'boxes': []}
+    
+    # PaddleOCR 返回格式: (boxes_list, texts_with_scores_list, timing_dict)
+    if isinstance(paddleocr_output, tuple) and len(paddleocr_output) >= 2:
+        boxes_list = paddleocr_output[0]  # 边界框列表
+        texts_with_scores = paddleocr_output[1]  # 文本和置信度列表
+        
+        logger.debug(f"Boxes list length: {len(boxes_list) if boxes_list else 0}")
+        logger.debug(f"Texts with scores length: {len(texts_with_scores) if texts_with_scores else 0}")
+        
+        if boxes_list and texts_with_scores and len(boxes_list) == len(texts_with_scores):
+            try:
+                for i, (bbox, (text, confidence)) in enumerate(zip(boxes_list, texts_with_scores)):
+                    logger.debug(f"Processing item {i}: text='{text}', confidence={confidence}")
+                    
+                    texts.append(text)
+                    scores.append(f"{confidence:.2f}")
+                    
+                    # 处理边界框坐标
+                    xs = [point[0] for point in bbox]
+                    ys = [point[1] for point in bbox]
+                    
+                    x_min, x_max = min(xs), max(xs)
+                    y_min, y_max = min(ys), max(ys)
+                    
+                    width = x_max - x_min
+                    height = y_max - y_min
+                    
+                    boxes.append({
+                        'x': to_fixed(x_min),
+                        'y': to_fixed(y_min),
+                        'width': to_fixed(width),
+                        'height': to_fixed(height)
+                    })
+            except Exception as e:
+                logger.error(f"Error parsing PaddleOCR tuple format: {e}")
+                return {'texts': [], 'scores': [], 'boxes': []}
+        else:
+            logger.warning(f"Mismatch in PaddleOCR output lengths: boxes={len(boxes_list) if boxes_list else 0}, texts={len(texts_with_scores) if texts_with_scores else 0}")
+    else:
+        # 兼容旧格式处理
+        logger.debug(f"PaddleOCR output[0]: {paddleocr_output[0]}")
+        logger.debug(f"PaddleOCR output[0] type: {type(paddleocr_output[0])}")
+        logger.debug(f"PaddleOCR output[0] length: {len(paddleocr_output[0]) if paddleocr_output[0] else 0}")
+        
+        try:
+            for i, line in enumerate(paddleocr_output[0]):  # PaddleOCR返回的是嵌套列表
+                logger.debug(f"Processing line {i}: {line}, type: {type(line)}")
+                # 检查line的类型和长度，PaddleOCR可能返回不同格式
+                if isinstance(line, (list, tuple)) and len(line) == 2:  # 格式: [bbox, (text, confidence)]
+                    bbox, (text, confidence) = line
+                elif isinstance(line, (list, tuple)) and len(line) == 3:  # 格式: [bbox, text, confidence]
+                    bbox, text, confidence = line
+                elif isinstance(line, np.ndarray):  # 只有边界框坐标的情况
+                    logger.debug(f"PaddleOCR returned only bbox coordinates: {line}")
+                    continue  # 跳过只有坐标没有文本的结果
+                else:
+                    logger.warning(f"Unexpected PaddleOCR output format: {line}")
+                    continue
+                
+                texts.append(text)
+                scores.append(f"{confidence:.2f}")
+                
+                # 处理边界框坐标
+                xs = [point[0] for point in bbox]
+                ys = [point[1] for point in bbox]
+                
+                x_min, x_max = min(xs), max(xs)
+                y_min, y_max = min(ys), max(ys)
+                
+                width = x_max - x_min
+                height = y_max - y_min
+                
+                boxes.append({
+                    'x': to_fixed(x_min),
+                    'y': to_fixed(y_min),
+                    'width': to_fixed(width),
+                    'height': to_fixed(height)
+                })
+        except Exception as e:
+            logger.error(f"Error parsing PaddleOCR output: {e}, output: {paddleocr_output}")
+            return {'texts': [], 'scores': [], 'boxes': []}
 
     output = {
         'texts': texts,
@@ -238,10 +305,13 @@ async def process_image(file: UploadFile = File(...), api_key: str = Depends(ver
             return {'result': [], 'msg': 'height or width out of range'}
 
         _result = await predict(ocr_model, img)
-        result = convert_rapidocr_to_json(_result)
+        logger.info(f"Raw PaddleOCR result for {file.filename}: {_result}")
+        result = convert_paddleocr_to_json(_result)
         del img
         del _result
-        logger.info(f"OCR processing completed for {file.filename}, result count: {len(result)}")
+        logger.info(f"OCR processing completed for {file.filename}, texts found: {len(result.get('texts', []))}, scores: {len(result.get('scores', []))}, boxes: {len(result.get('boxes', []))}")
+        if len(result.get('texts', [])) == 0:
+            logger.warning(f"No text extracted from {file.filename}, check convert_paddleocr_to_json function")
         return {'result': result}
     except Exception as e:
         logger.error(f"OCR processing error: {e}")
