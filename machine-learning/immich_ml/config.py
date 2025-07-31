@@ -74,6 +74,7 @@ class Settings(BaseSettings):
     # 人脸识别模型配置
     face_model_name: str = os.getenv("FACE_MODEL_NAME", "antelopev2")
     face_threshold: float = float(os.getenv("FACE_THRESHOLD", "0.7"))
+    face_max_distance: float = float(os.getenv("FACE_MAX_DISTANCE", "0.5"))
 
     @property
     def device_id(self) -> str:
