@@ -18,8 +18,6 @@ services:
       - FACE_MODEL_NAME=antelopev2
       - DEVICE=openvino
       - FACE_THRESHOLD=0.7
-      - FACE_MAX_DISTANCE=0.4
-      - MACHINE_LEARNING_CACHE_FOLDER=/cache
       - LOG_LEVEL=INFO
       - PYTHONHTTPSVERIFY=0
     # 为Intel集成显卡提供设备访问权限

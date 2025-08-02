@@ -184,7 +184,6 @@ CLIP_MODEL_NAME=nllb-clip-large-siglip__v1
 # 人脸识别配置
 FACE_MODEL_NAME=antelopev2
 FACE_THRESHOLD=0.7
-FACE_MAX_DISTANCE=0.4
 
 # 设备类型配置（OpenVINO 版本专用）
 DEVICE=openvino  # 可选值: cpu, cuda, openvino
@@ -358,13 +357,11 @@ curl -X POST "http://localhost:3004/face/detect" \
 在 MT-Photos 中配置 AI 服务地址：
 
 1. 人脸置信度建议设置为 0.55-0.70 (对应 FACE_THRESHOLD 参数)
-2. 人物匹配差异值建议设置为 0.35-0.50 (对应 FACE_MAX_DISTANCE 参数)
-3. CLIP 向量长度根据模型自动调整
+2. CLIP 向量长度根据模型自动调整
 
 ### 环境变量配置
 
 - `FACE_THRESHOLD`: 人脸检测置信度阈值，默认 0.7
-- `FACE_MAX_DISTANCE`: 人脸识别最大距离阈值，默认 0.5
 
 ## 故障排除
 
