@@ -22,7 +22,7 @@ on_linux = sys.platform.startswith('linux')
 
 # 必须在导入immich_adapter之前加载.env文件
 load_dotenv()
-from immich_adapter import immich_adapter  # 使用immich适配器
+from immich_adapter import immich_adapter  # 使用immich适配�?
 
 # 配置日志
 logger = logging.getLogger("uvicorn")
@@ -36,12 +36,12 @@ http_port = int(os.getenv("HTTP_PORT", "8060"))
 server_restart_time = int(os.getenv("SERVER_RESTART_TIME", "300"))
 env_auto_load_txt_modal = os.getenv("AUTO_LOAD_TXT_MODAL", "off") == "on" # 是否自动加载CLIP文本模型，开启可以优化第一次搜索时的响应速度,文本模型占用700多m内存
 
-# clip_model_name = os.getenv("CLIP_MODEL")  # 移到immich_adapter中管理
+# clip_model_name = os.getenv("CLIP_MODEL")  # 移到immich_adapter中管�?
 
 
 ocr_model = None
-# clip_processor = None  # 不再需要，使用immich适配器
-# clip_model = None  # 不再需要，使用immich适配器
+# clip_processor = None  # 不再需要，使用immich适配�?
+# clip_model = None  # 不再需要，使用immich适配�?
 
 restart_task = None
 restart_lock = asyncio.Lock()
@@ -57,10 +57,10 @@ def load_ocr_model():
     if ocr_model is None:
         logger.info("Loading OCR model 'PaddleOCR' to memory")
         
-        # 根据 PaddleOCR 3.0 官方文档，使用默认配置
+        # 根据 PaddleOCR 3.0 官方文档，使用默认配�?
         # 默认使用 PP-OCRv5_server 模型，支持中英文识别
         # PaddleOCR 会自动下载模型到系统默认缓存目录
-        # 注意：只有在已有完整模型文件时才能使用 text_detection_model_dir 参数
+        # 注意：只有在已有完整模型文件时才能使�?text_detection_model_dir 参数
         ocr_model = PaddleOCR()
         if torch.cuda.is_available():
             logger.info("PaddleOCR initialized with GPU acceleration")
@@ -70,7 +70,7 @@ def load_ocr_model():
         # https://paddlepaddle.github.io/PaddleOCR/main/en/quick_start.html
 
 def load_clip_model():
-    """预加载CLIP模型 - 使用immich适配器"""
+    """预加载CLIP模型 - 使用immich适配�?""
     try:
         # 预加载视觉和文本模型
         immich_adapter.load_clip_visual_model()
@@ -89,7 +89,6 @@ async def lifespan(app: FastAPI):
     logger.info(f"FACE_MODEL_NAME: {immich_adapter.face_model_name}")
     logger.info(f"CLIP_MODEL_NAME: {immich_adapter.clip_model_name}")
     logger.info(f"FACE_THRESHOLD: {immich_adapter.face_threshold}")
-    logger.info(f"FACE_MAX_DISTANCE: {immich_adapter.face_max_distance}")
     logger.info(f"DEVICE: {device}")
     logger.info(f"CUDA_AVAILABLE: {torch.cuda.is_available()}")
     # 输出ONNX Runtime执行提供程序信息
@@ -137,7 +136,7 @@ async def activity_monitor(request, call_next):
 
 
 async def verify_header(api_key: str = Header(...)):
-    # 在这里编写验证逻辑，例如检查 api_key 是否有效
+    # 在这里编写验证逻辑，例如检�?api_key 是否有效
     if api_key != api_auth_key:
         raise HTTPException(status_code=401, detail="Invalid API key")
     return api_key
@@ -148,13 +147,13 @@ def to_fixed(num):
 
 def convert_paddleocr_to_json(paddleocr_output):
     """
-    将 PaddleOCR 3.0 的输出转换为 JSON 格式
+    �?PaddleOCR 3.0 的输出转换为 JSON 格式
     
     Args:
-        paddleocr_output: PaddleOCR 3.0 的原始输出
+        paddleocr_output: PaddleOCR 3.0 的原始输�?
         
     Returns:
-        dict: 包含 texts, scores, boxes 的字典
+        dict: 包含 texts, scores, boxes 的字�?
     """
     logger.debug(f"convert_paddleocr_to_json input type: {type(paddleocr_output)}")
     logger.debug(f"convert_paddleocr_to_json input content: {paddleocr_output}")
@@ -164,7 +163,7 @@ def convert_paddleocr_to_json(paddleocr_output):
     boxes = []
     
     try:
-        # PaddleOCR 3.0 新格式：返回字典包含 rec_texts, rec_scores, rec_polys 等字段
+        # PaddleOCR 3.0 新格式：返回字典包含 rec_texts, rec_scores, rec_polys 等字�?
         if isinstance(paddleocr_output, list) and len(paddleocr_output) > 0:
             # 检查是否为新的字典格式
             if isinstance(paddleocr_output[0], dict):
@@ -174,11 +173,11 @@ def convert_paddleocr_to_json(paddleocr_output):
                 if 'rec_texts' in result_dict:
                     texts = [str(text) for text in result_dict['rec_texts']]
                 
-                # 提取置信度
+                # 提取置信�?
                 if 'rec_scores' in result_dict:
                     scores = [f"{float(score):.2f}" for score in result_dict['rec_scores']]
                 
-                # 提取边界框坐标
+                # 提取边界框坐�?
                 if 'rec_polys' in result_dict:
                     for poly in result_dict['rec_polys']:
                         if hasattr(poly, 'tolist'):
@@ -186,7 +185,7 @@ def convert_paddleocr_to_json(paddleocr_output):
                             poly = poly.tolist()
                         
                         if isinstance(poly, list) and len(poly) == 4:
-                            # 计算矩形边界框
+                            # 计算矩形边界�?
                             xs = [point[0] for point in poly]
                             ys = [point[1] for point in poly]
                             
@@ -205,15 +204,15 @@ def convert_paddleocr_to_json(paddleocr_output):
                 
                 logger.info(f"PaddleOCR 3.0 new format processed: {len(texts)} texts, {len(scores)} scores, {len(boxes)} boxes")
             
-            # 兼容旧格式: [[[x1,y1], [x2,y2], [x3,y3], [x4,y4]], [text, confidence]]
+            # 兼容旧格�? [[[x1,y1], [x2,y2], [x3,y3], [x4,y4]], [text, confidence]]
             elif isinstance(paddleocr_output[0], list) and len(paddleocr_output[0]) == 2:
                 for line in paddleocr_output:
                     if isinstance(line, list) and len(line) == 2:
                         bbox, text_info = line
                         
-                        # 处理边界框坐标
+                        # 处理边界框坐�?
                         if isinstance(bbox, list) and len(bbox) == 4:
-                            # 计算矩形边界框
+                            # 计算矩形边界�?
                             xs = [point[0] for point in bbox]
                             ys = [point[1] for point in bbox]
                             
@@ -271,8 +270,8 @@ async def top_info():
 </head>
 <body>
 <p style="font-weight: 600;">MT Photos智能识别服务</p>
-<p>服务状态： 运行中</p>
-<p>使用方法： <a href="https://mtmt.tech/docs/advanced/ocr_api">https://mtmt.tech/docs/advanced/ocr_api</a></p>
+<p>服务状态： 运行�?/p>
+<p>使用方法�?<a href="https://mtmt.tech/docs/advanced/ocr_api">https://mtmt.tech/docs/advanced/ocr_api</a></p>
 </body>
 </html>"""
     return html_content
@@ -316,7 +315,7 @@ async def process_image(file: UploadFile = File(...), api_key: str = Depends(ver
         if width > 10000 or height > 10000:
             return {'result': [], 'msg': 'height or width out of range'}
 
-        # 根据 PaddleOCR 3.0 官方文档，直接调用 predict 方法
+        # 根据 PaddleOCR 3.0 官方文档，直接调�?predict 方法
         _result = await asyncio.get_running_loop().run_in_executor(None, ocr_model.predict, img)
         logger.info(f"Raw PaddleOCR result for {file.filename}: {_result}")
         result = convert_paddleocr_to_json(_result)
@@ -335,7 +334,7 @@ async def clip_process_image(file: UploadFile = File(...), api_key: str = Depend
     logger.info(f"clip_process_image Received {file.content_type} file: {file.filename}")
     image_bytes = await file.read()
     try:
-        # 使用immich适配器进行图像编码
+        # 使用immich适配器进行图像编�?
         result = await asyncio.get_running_loop().run_in_executor(
             None, immich_adapter.encode_image, image_bytes
         )
@@ -349,7 +348,7 @@ async def clip_process_image(file: UploadFile = File(...), api_key: str = Depend
 async def clip_process_txt(request:ClipTxtRequest, api_key: str = Depends(verify_header)):
     logger.info(f"clip_process_text Received text query: {request.text[:50]}...")
     try:
-        # 使用immich适配器进行文本编码
+        # 使用immich适配器进行文本编�?
         result = await asyncio.get_running_loop().run_in_executor(
             None, immich_adapter.encode_text, request.text
         )
@@ -369,7 +368,7 @@ async def face_represent(file: UploadFile = File(...), api_key: str = Depends(ve
     try:
         img = None
         if content_type == 'image/gif':
-            # 处理GIF文件的第一帧
+            # 处理GIF文件的第一�?
             with Image.open(BytesIO(image_bytes)) as pil_img:
                 if pil_img.is_animated:
                     pil_img.seek(0)
@@ -396,7 +395,7 @@ async def face_represent(file: UploadFile = File(...), api_key: str = Depends(ve
             "recognition_model": immich_adapter.face_model_name
         }
         
-        # 使用Immich适配器进行人脸特征提取
+        # 使用Immich适配器进行人脸特征提�?
         embedding_objs = await asyncio.get_running_loop().run_in_executor(
             None, _immich_represent, image_bytes
         )
@@ -413,7 +412,7 @@ async def face_represent(file: UploadFile = File(...), api_key: str = Depends(ve
         return {'result': [], 'msg': str(e)}
 
 def _immich_represent(image_bytes):
-    """使用Immich适配器进行人脸特征提取"""
+    """使用Immich适配器进行人脸特征提�?""
     try:
         face_result = immich_adapter.detect_faces(image_bytes)
         # 直接返回result数组，保持与DeepFace.represent格式兼容
