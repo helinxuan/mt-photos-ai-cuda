@@ -358,22 +358,6 @@ async def clip_process_txt(request:ClipTxtRequest, api_key: str = Depends(verify
         logger.error(f"CLIP text processing error: {e}")
         return {'result': [], 'msg': str(e)}
 
-@app.post("/face/detect")
-async def face_detect(file: UploadFile = File(...), api_key: str = Depends(verify_header)):
-    """人脸检测和识别API - 使用Immich"""
-    logger.info(f"face_detect Received {file.content_type} file: {file.filename}")
-    image_bytes = await file.read()
-    try:
-        # 使用immich适配器进行人脸检测和识别
-        result = await asyncio.get_running_loop().run_in_executor(
-            None, immich_adapter.detect_faces, image_bytes
-        )
-        logger.info(f"Face detection completed for {file.filename}, faces found: {len(result.get('faces', []))}")
-        return {'result': result}
-    except Exception as e:
-        logger.error(f"Face detection error: {e}")
-        return {'result': {'faces': [], 'detection': {'boxes': [], 'scores': [], 'landmarks': []}}, 'msg': str(e)}
-
 @app.post("/represent")
 async def face_represent(file: UploadFile = File(...), api_key: str = Depends(verify_header)):
     """人脸特征提取API - 兼容MT-Photos格式，使用Immich后端"""
