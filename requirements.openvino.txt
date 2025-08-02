@@ -1,0 +1,31 @@
+fastapi==0.103.0
+numpy==1.24.4
+opencv_contrib_python==4.10.0.84
+opencv_python_headless==4.10.0.84
+uvicorn==0.23.2
+python-dotenv==1.0.0
+python-multipart==0.0.6
+
+# PaddleOCR CPU版本（OpenVINO不支持PaddleOCR GPU加速）
+paddlepaddle>=2.5.0
+paddleocr>=3.0.0
+
+# Immich机器学习模块依赖
+aiocache>=0.12.1,<1.0
+ftfy>=6.1.1
+gunicorn==23.0.0
+huggingface-hub>=0.20.1,<1.0
+insightface>=0.7.3,<1.0
+orjson>=3.9.5
+pillow>=9.5.0,<11.0
+pydantic>=2.0.0,<3
+pydantic-settings>=2.5.2,<3
+rich>=13.4.2
+tokenizers>=0.15.0,<1.0
+
+# OpenVINO版本的ONNX Runtime，支持Intel集成显卡
+onnxruntime-openvino>=1.17.1,<1.19.0
+
+# PyTorch CPU版本（OpenVINO主要用于推理，不需要CUDA版本的PyTorch）
+torch>=2.0.0,<3.0.0 --index-url https://download.pytorch.org/whl/cpu
+torchvision>=0.15.0,<1.0.0 --index-url https://download.pytorch.org/whl/cpu

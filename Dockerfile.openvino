@@ -1,0 +1,55 @@
+# Dockerfile for Intel integrated GPU support using OpenVINO
+FROM python:3.11-slim-bookworm
+
+# Install system dependencies for OpenVINO and Intel GPU support
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
+    wget \
+    ocl-icd-libopencl1 \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+    libsm6 \
+    libxrender1 \
+    libfontconfig \
+    liblmdb-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install Intel GPU drivers and OpenCL runtime
+RUN wget -nv https://github.com/intel/intel-graphics-compiler/releases/download/igc-1.0.17384.11/intel-igc-core_1.0.17384.11_amd64.deb && \
+    wget -nv https://github.com/intel/intel-graphics-compiler/releases/download/igc-1.0.17384.11/intel-igc-opencl_1.0.17384.11_amd64.deb && \
+    wget -nv https://github.com/intel/compute-runtime/releases/download/24.31.30508.7/intel-opencl-icd_24.31.30508.7_amd64.deb && \
+    wget -nv https://github.com/intel/compute-runtime/releases/download/24.31.30508.7/libigdgmm12_22.4.1_amd64.deb && \
+    dpkg -i *.deb && \
+    rm *.deb
+
+WORKDIR /app
+
+# Copy requirements and install Python dependencies
+COPY requirements.openvino.txt .
+RUN pip3 install --no-cache-dir -r requirements.openvino.txt --index-url=https://pypi.tuna.tsinghua.edu.cn/simple/
+
+# Copy Immich ML module
+COPY machine-learning/immich_ml ./immich_ml
+
+# Environment variables
+ENV API_AUTH_KEY=mt_photos_ai_extra
+ENV CLIP_MODEL=ViT-B-16
+ENV DEVICE=openvino
+ENV TRANSFORMERS_CACHE=/cache
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV MACHINE_LEARNING_CACHE_FOLDER=/cache
+
+# Copy application files
+COPY server.py .
+COPY immich_adapter.py .
+COPY .env .
+
+# Create cache directory
+RUN mkdir -p /cache
+
+EXPOSE 3004
+
+CMD ["python3", "/app/server.py"]

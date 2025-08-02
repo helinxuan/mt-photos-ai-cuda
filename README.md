@@ -11,6 +11,7 @@
 - ✅ **OCR 文本识别**: 使用 PaddleOCR GPU 版本进行文本识别
 - ✅ **API 兼容性**: 完全兼容原 MT-Photos AI 的 API 接口
 - ✅ **GPU 加速**: 完整支持 CUDA 12.9 加速推理
+- ✅ **集成显卡支持**: 支持 Intel 集成显卡通过 OpenVINO 加速推理
 
 ## 参考项目
 
@@ -35,20 +36,35 @@ e:\mt-photos-ai-cuda\
 
 ## 系统要求
 
-### 硬件要求
+### CUDA 版本（独立显卡）
+#### 硬件要求
 - NVIDIA GPU（支持 CUDA 12.9）
 - 至少 8GB GPU 显存（推荐 16GB+）
 - 至少 16GB 系统内存
 
-### 软件环境
+#### 软件环境
 - Windows 11 + WSL2 Ubuntu
 - CUDA 12.9
 - Python 3.8+
 - Docker（可选）
 
+### OpenVINO 版本（集成显卡）
+#### 硬件要求
+- Intel 集成显卡（支持 OpenCL）
+- 至少 8GB 系统内存（推荐 16GB+）
+- 支持的 Intel 处理器（第6代酷睿及以上）
+
+#### 软件环境
+- Windows 10/11 或 Linux
+- Intel GPU 驱动程序
+- Python 3.8+
+- Docker（可选）
+
 ## 安装步骤
 
-### 1. 环境准备
+### CUDA 版本安装（独立显卡）
+
+#### 1. 环境准备
 
 确保已安装 CUDA 12.9 和相应的驱动程序：
 
@@ -92,10 +108,57 @@ pip install -r requirements.txt
 python -m pip install gunicorn
 ```
 
-### 7. 验证安装
+#### 7. 验证安装
 
 ```bash
 python -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}'); print(f'CUDA version: {torch.version.cuda}'); print(f'GPU count: {torch.cuda.device_count()}')"
+```
+
+### OpenVINO 版本安装（集成显卡）
+
+#### 1. 使用 Docker 快速部署（推荐）
+
+```bash
+# Windows 用户
+build-openvino.bat
+
+# Linux/macOS 用户
+chmod +x build-openvino.sh
+./build-openvino.sh
+
+# 启动服务
+docker compose -f docker-compose.openvino.yml up -d
+```
+
+#### 2. 手动安装
+
+```bash
+# 克隆项目
+git clone <repository-url> mt-photos-ai-cuda
+cd mt-photos-ai-cuda
+
+# 创建虚拟环境
+python -m venv venv
+source venv/bin/activate  # Linux/macOS
+# 或
+venv\Scripts\activate     # Windows
+
+# 安装 OpenVINO 版本依赖
+pip install -r requirements.openvino.txt
+
+# 启动服务
+python server.py
+```
+
+#### 3. 验证 Intel GPU 支持
+
+```bash
+# 检查 OpenCL 设备
+python -c "import onnxruntime as ort; print('Available providers:', ort.get_available_providers())"
+
+# 检查 Intel GPU 驱动
+# Windows: 设备管理器 -> 显示适配器
+# Linux: lspci | grep VGA
 ```
 
 ## 配置说明
@@ -121,6 +184,10 @@ CLIP_MODEL_NAME=nllb-clip-large-siglip__v1
 # 人脸识别配置
 FACE_MODEL_NAME=antelopev2
 FACE_THRESHOLD=0.7
+FACE_MAX_DISTANCE=0.4
+
+# 设备类型配置（OpenVINO 版本专用）
+DEVICE=openvino  # 可选值: cpu, cuda, openvino
 
 # 模型缓存目录
 MACHINE_LEARNING_CACHE_FOLDER=/model-cache
@@ -134,6 +201,25 @@ LOG_LEVEL=INFO
 
 # 服务重启时间间隔 (秒)
 SERVER_RESTART_TIME=300
+```
+
+### OpenVINO 版本特殊配置
+
+OpenVINO 版本支持以下额外配置：
+
+```bash
+# OpenVINO 设备配置
+DEVICE=openvino
+
+# Intel GPU 设备选择（可选）
+# AUTO: 自动选择最佳设备
+# GPU: 强制使用集成显卡
+# CPU: 强制使用 CPU
+OPENVINO_DEVICE=AUTO
+
+# 性能优化（集成显卡推荐设置）
+MODEL_TTL=600  # 增加模型缓存时间
+MAX_BATCH_SIZE=1  # 降低批处理大小
 ```
 
 ### 模型选择
@@ -325,19 +411,83 @@ tail -f /var/log/mt-photos-ai.log
 # 在 .env 中设置 LOG_LEVEL=DEBUG
 ```
 
+## 性能对比
+
+| 版本类型 | 硬件要求 | 推理速度 | 显存占用 | 适用场景 |
+|---------|---------|---------|---------|----------|
+| CUDA 版本 | NVIDIA 独立显卡 | 快 | 8GB+ | 高性能服务器、工作站 |
+| OpenVINO 版本 | Intel 集成显卡 | 中等 | 系统内存 | 普通电脑、笔记本 |
+| CPU 版本 | 仅 CPU | 慢 | 系统内存 | 无 GPU 设备 |
+
+### 性能建议
+
+- **CUDA 版本**: 适合有独立显卡的用户，性能最佳
+- **OpenVINO 版本**: 适合只有集成显卡的用户，性能适中
+- **CPU 版本**: 适合无 GPU 的服务器，性能较低但兼容性最好
+
+## 注意事项
+
+### OpenVINO 版本限制
+
+1. **硬件兼容性**:
+   - 需要第6代 Intel 酷睿处理器及以上
+   - 需要支持 OpenCL 的集成显卡
+   - 部分老旧集成显卡可能不支持
+
+2. **性能特点**:
+   - 推理速度比 CUDA 版本慢 2-3 倍
+   - 内存占用相对较低
+   - 首次加载模型时间较长
+
+3. **功能限制**:
+   - PaddleOCR 使用 CPU 版本（无 GPU 加速）
+   - 批处理大小建议设为 1
+   - 不支持某些高级 CUDA 特性
+
+### 故障排除
+
+#### OpenVINO 版本常见问题
+
+1. **Intel GPU 驱动问题**:
+   ```bash
+   # Windows: 更新 Intel 显卡驱动
+   # 访问 Intel 官网下载最新驱动
+   
+   # Linux: 安装 Intel GPU 驱动
+   sudo apt install intel-opencl-icd
+   ```
+
+2. **OpenCL 不可用**:
+   ```bash
+   # 检查 OpenCL 设备
+   clinfo
+   
+   # 如果没有 clinfo，安装它
+   sudo apt install clinfo
+   ```
+
+3. **容器权限问题**:
+   ```bash
+   # 确保 Docker 容器有访问 GPU 的权限
+   docker run --device /dev/dri:/dev/dri ...
+   ```
+
 ## 开发说明
 
 ### 项目结构
 ```
 mt-photos-ai-cuda/
-├── server.py              # 主服务文件
-├── immich_adapter.py      # Immich 适配器
-├── requirements.txt       # Python 依赖
-├── .env                   # 环境配置
-├── .env.example          # 配置模板
-├── Dockerfile            # Docker 构建文件
-├── machine-learning/     # Immich ML 模块
-└── cache/               # 模型缓存目录
+├── server.py                    # 主服务文件
+├── immich_adapter.py            # Immich 适配器
+├── requirements.txt             # CUDA 版本依赖
+├── requirements.openvino.txt    # OpenVINO 版本依赖
+├── Dockerfile                   # CUDA 版本 Docker 文件
+├── Dockerfile.openvino          # OpenVINO 版本 Docker 文件
+├── docker-compose.openvino.yml  # OpenVINO 版本 Docker Compose
+├── build-openvino.bat           # Windows 构建脚本
+├── build-openvino.sh            # Linux 构建脚本
+├── .env                         # 环境配置
+└── machine-learning/            # Immich 机器学习模块
 ```
 
 ### 添加新功能

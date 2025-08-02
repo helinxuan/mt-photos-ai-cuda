@@ -1,0 +1,35 @@
+# Docker Compose file for OpenVINO version
+name: mt-photos-ai-openvino
+
+services:
+  mt-photos-ai-openvino:
+    build:
+      context: .
+      dockerfile: Dockerfile.openvino
+    container_name: mt-photos-ai-openvino
+    ports:
+      - "8060:3004"
+    volumes:
+      - E:\model-cache:/cache
+      - E:\.paddlex:/root/.paddlex
+    environment:
+      - API_AUTH_KEY=mt_photos_ai_extra
+      - CLIP_MODEL=ViT-B-16
+      - DEVICE=openvino
+      - FACE_THRESHOLD=0.7
+      - FACE_MAX_DISTANCE=0.4
+      - MACHINE_LEARNING_CACHE_FOLDER=/cache
+      - LOG_LEVEL=INFO
+    # 为Intel集成显卡提供设备访问权限
+
+    # 添加必要的权限
+    privileged: false
+    # 确保容器可以访问GPU设备
+
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import requests; requests.get('http://localhost:8060/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

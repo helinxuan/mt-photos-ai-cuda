@@ -44,7 +44,7 @@ ocr_model = None
 # clip_model = None  # 不再需要，使用immich适配器
 
 restart_task = None
-restart_lock = asyncio.Lock()
+restart_lock = None
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -82,6 +82,8 @@ def load_clip_model():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # 启动事件
+    global restart_lock
+    restart_lock = asyncio.Lock()
     import onnxruntime as ort
     logger.info("Using PaddleOCR with GPU support")
     logger.info(f"LOG_LEVEL: {os.getenv('LOG_LEVEL', 'ERROR')}")
@@ -126,11 +128,13 @@ async def restart_timer():
 async def activity_monitor(request, call_next):
     global restart_task
 
-    async with restart_lock:
-        if restart_task and not restart_task.done():
-            restart_task.cancel()
+    # 确保 restart_lock 已初始化
+    if restart_lock is not None:
+        async with restart_lock:
+            if restart_task and not restart_task.done():
+                restart_task.cancel()
 
-        restart_task = asyncio.create_task(restart_timer())
+            restart_task = asyncio.create_task(restart_timer())
 
     response = await call_next(request)
     return response
