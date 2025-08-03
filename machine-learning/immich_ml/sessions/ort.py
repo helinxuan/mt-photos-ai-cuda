@@ -68,8 +68,7 @@ class OrtSession:
 
             gpu_devices = [device_id for device_id in device_ids if device_id.startswith("GPU")]
             if not gpu_devices:
-                log.warning("No GPU device found in OpenVINO. Falling back to CPU.")
-                available_providers.remove(openvino)
+                log.info("No GPU device found in OpenVINO. Using CPU device for acceleration.")
         return [provider for provider in SUPPORTED_PROVIDERS if provider in available_providers]
 
     @property

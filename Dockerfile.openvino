@@ -8,6 +8,8 @@ RUN apt-get update && \
     g++ \
     wget \
     ocl-icd-libopencl1 \
+    intel-opencl-icd \
+    clinfo \
     libgl1-mesa-glx \
     libglib2.0-0 \
     libsm6 \
@@ -39,6 +41,10 @@ COPY server.py .
 COPY immich_adapter.py .
 COPY .env .
 
+# Set OpenVINO environment variables for GPU support
+ENV OPENVINO_INSTALL_DIR=/usr/local/lib/python3.11/site-packages/openvino
+ENV LD_LIBRARY_PATH=${OPENVINO_INSTALL_DIR}/libs:/usr/local/lib
+ENV INTEL_OPENVINO_DIR=${OPENVINO_INSTALL_DIR}
 
 EXPOSE 3004
 

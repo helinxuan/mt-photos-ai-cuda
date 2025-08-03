@@ -32,7 +32,7 @@ log_level = getattr(logging, log_level_str, logging.INFO)
 logger.setLevel(log_level)
 
 api_auth_key = os.getenv("API_AUTH_KEY", "mt_photos_ai_extra")
-http_port = int(os.getenv("HTTP_PORT", "8060"))
+http_port = int(os.getenv("HTTP_PORT", "3004"))
 server_restart_time = int(os.getenv("SERVER_RESTART_TIME", "300"))
 env_auto_load_txt_modal = os.getenv("AUTO_LOAD_TXT_MODAL", "off") == "on" # 是否自动加载CLIP文本模型，开启可以优化第一次搜索时的响应速度,文本模型占用700多m内存
 
@@ -46,7 +46,8 @@ ocr_model = None
 restart_task = None
 restart_lock = None
 
-device = "cuda" if torch.cuda.is_available() else "cpu"
+# 从环境变量获取设备类型，如果未设置则根据CUDA可用性自动选择
+device = os.getenv("DEVICE", "cuda" if torch.cuda.is_available() else "cpu")
 
 class ClipTxtRequest(BaseModel):
     text: str
@@ -85,7 +86,14 @@ async def lifespan(app: FastAPI):
     global restart_lock
     restart_lock = asyncio.Lock()
     import onnxruntime as ort
-    logger.info("Using PaddleOCR with GPU support")
+    # 根据设备类型输出相应的信息
+    if device == "openvino":
+        logger.info("Using PaddleOCR with OpenVINO acceleration")
+    elif device == "cuda":
+        logger.info("Using PaddleOCR with GPU support")
+    else:
+        logger.info("Using PaddleOCR with CPU")
+    
     logger.info(f"LOG_LEVEL: {os.getenv('LOG_LEVEL', 'ERROR')}")
     logger.info(f"MODEL_TTL: {os.getenv('MODEL_TTL', '0')}")
     logger.info(f"FACE_MODEL_NAME: {immich_adapter.face_model_name}")
@@ -93,11 +101,14 @@ async def lifespan(app: FastAPI):
     logger.info(f"FACE_THRESHOLD: {immich_adapter.face_threshold}")
     logger.info(f"DEVICE: {device}")
     logger.info(f"CUDA_AVAILABLE: {torch.cuda.is_available()}")
+    
     # 输出ONNX Runtime执行提供程序信息
     available_providers = ort.get_available_providers()
-
     logger.info(f"ONNX_PROVIDERS: {available_providers}")
-    # 检查CUDA执行提供程序
+    
+    # 检查各种执行提供程序
+    if 'OpenVINOExecutionProvider' in available_providers:
+        logger.info(f"OpenVINO_RUNTIME: Available")
     if 'CUDAExecutionProvider' in available_providers:
         logger.info(f"CUDA_RUNTIME: Available")
     else:

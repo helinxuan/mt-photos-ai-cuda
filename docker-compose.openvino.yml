@@ -8,7 +8,7 @@ services:
       dockerfile: Dockerfile.openvino
     container_name: mt-photos-ai-openvino
     ports:
-      - "8060:3004"
+      - "3004:3004"
     volumes:
       - E:\model-cache:/model-cache
       - E:\.paddlex:/root/.paddlex
@@ -27,9 +27,3 @@ services:
     # 确保容器可以访问GPU设备
 
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "python3", "-c", "import requests; requests.get('http://localhost:8060/health')"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s

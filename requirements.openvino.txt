@@ -23,8 +23,10 @@ pydantic-settings>=2.5.2,<3
 rich>=13.4.2
 tokenizers>=0.15.0,<1.0
 
-# OpenVINO版本的ONNX Runtime，支持Intel集成显卡
-onnxruntime-openvino>=1.17.1,<1.19.0
+# ONNX Runtime with OpenVINO support
+onnxruntime>=1.17.1,<1.19.0
+# OpenVINO toolkit for Intel GPU support
+openvino>=2024.0.0
 
 # PyTorch CPU版本（OpenVINO主要用于推理，不需要CUDA版本的PyTorch）
 torch>=2.0.0,<3.0.0 --index-url https://download.pytorch.org/whl/cpu
