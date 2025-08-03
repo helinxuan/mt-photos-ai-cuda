@@ -33,22 +33,12 @@ RUN pip3 install --no-cache-dir -r requirements.openvino.txt --index-url=https:/
 # Copy Immich ML module
 COPY machine-learning/immich_ml ./immich_ml
 
-# Environment variables
-ENV API_AUTH_KEY=mt_photos_ai_extra
-ENV CLIP_MODEL=ViT-B-16
-ENV DEVICE=openvino
-ENV TRANSFORMERS_CACHE=/cache
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
-ENV MACHINE_LEARNING_CACHE_FOLDER=/cache
 
 # Copy application files
 COPY server.py .
 COPY immich_adapter.py .
 COPY .env .
 
-# Create cache directory
-RUN mkdir -p /cache
 
 EXPOSE 3004
 
