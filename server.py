@@ -63,10 +63,11 @@ def load_ocr_model():
         # PaddleOCR 会自动下载模型到系统默认缓存目录
         # 注意：只有在已有完整模型文件时才能使用 text_detection_model_dir 参数
         ocr_model = PaddleOCR(
-                        text_detection_model_dir=os.path.join(os.getenv("MACHINE_LEARNING_CACHE_FOLDER", "/model-cache"), "PP-OCRv5_server_det"),
-                        text_recognition_model_dir=os.path.join(os.getenv("MACHINE_LEARNING_CACHE_FOLDER", "/model-cache"), "PP-OCRv5_server_rec"),
-                        doc_orientation_classify_model_dir=os.path.join(os.getenv("MACHINE_LEARNING_CACHE_FOLDER", "/model-cache"), "PP-LCNet_x1_0_doc_ori"),
-                        doc_unwarping_model_dir=os.path.join(os.getenv("MACHINE_LEARNING_CACHE_FOLDER", "/model-cache"), "UVDoc")
+            ocr_version="PP-OCRv5",
+            text_detection_model_dir=os.path.join(os.getenv("OCR_MODEL_CACHE_FOLDER", "/model-cache"), "PP-OCRv5_server_det"),
+            text_recognition_model_dir=os.path.join(os.getenv("OCR_MODEL_CACHE_FOLDER", "/model-cache"), "PP-OCRv5_server_rec"),
+            doc_orientation_classify_model_dir=os.path.join(os.getenv("OCR_MODEL_CACHE_FOLDER", "/model-cache"), "PP-LCNet_x1_0_doc_ori"),
+            doc_unwarping_model_dir=os.path.join(os.getenv("OCR_MODEL_CACHE_FOLDER", "/model-cache"), "UVDoc")
         )
         if torch.cuda.is_available():
             logger.info("PaddleOCR initialized with GPU acceleration")
