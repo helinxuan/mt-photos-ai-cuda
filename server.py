@@ -58,16 +58,11 @@ def load_ocr_model():
     if ocr_model is None:
         logger.info("Loading OCR model 'PaddleOCR' to memory")
         
-        # 根据 PaddleOCR 3.0 官方文档，使用默认配置
-        # 默认使用 PP-OCRv5_server 模型，支持中英文识别
-        # PaddleOCR 会自动下载模型到系统默认缓存目录
-        # 注意：只有在已有完整模型文件时才能使用 text_detection_model_dir 参数
+        # 使用预置的模型，让PaddleOCR使用默认配置但不指定具体路径
+        # 这样PaddleOCR会自动处理模型加载
         ocr_model = PaddleOCR(
-            ocr_version="PP-OCRv5",
-            text_detection_model_dir=os.path.join(os.getenv("OCR_MODEL_CACHE_FOLDER", "/model-cache"), "PP-OCRv5_server_det"),
-            text_recognition_model_dir=os.path.join(os.getenv("OCR_MODEL_CACHE_FOLDER", "/model-cache"), "PP-OCRv5_server_rec"),
-            doc_orientation_classify_model_dir=os.path.join(os.getenv("OCR_MODEL_CACHE_FOLDER", "/model-cache"), "PP-LCNet_x1_0_doc_ori"),
-            doc_unwarping_model_dir=os.path.join(os.getenv("OCR_MODEL_CACHE_FOLDER", "/model-cache"), "UVDoc")
+            use_angle_cls=True,              # 使用文字方向分类器
+            lang='ch'                        # 支持中英文
         )
         if torch.cuda.is_available():
             logger.info("PaddleOCR initialized with GPU acceleration")
@@ -144,14 +139,18 @@ async def restart_timer():
 async def activity_monitor(request, call_next):
     global restart_task
 
-    # 确保 restart_lock 已初始化
-    if restart_lock is not None:
-        async with restart_lock:
-            if restart_task and not restart_task.done():
-                restart_task.cancel()
+    # 简化中间件，减少异步复杂性
+    if restart_lock is not None and server_restart_time > 0:
+        try:
+            async with restart_lock:
+                if restart_task and not restart_task.done():
+                    restart_task.cancel()
+                restart_task = asyncio.create_task(restart_timer())
+        except Exception:
+            # 忽略重启任务相关的错误，不影响主要功能
+            pass
 
-            restart_task = asyncio.create_task(restart_timer())
-
+    # 直接处理请求，让FastAPI处理连接异常
     response = await call_next(request)
     return response
 

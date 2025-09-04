@@ -1,16 +1,18 @@
 fastapi==0.103.0
 numpy==1.24.4
-opencv_contrib_python==4.6.0.66
-opencv_python_headless==4.6.0.66
+opencv_contrib_python==4.10.0.84
+opencv_python_headless==4.10.0.84
 uvicorn==0.23.2
 python-dotenv==1.0.0
 python-multipart==0.0.6
-# 手动安装 torch==2.7.0
-# torchvision==0.22.0
-# cn-clip==1.5.1  # 注释掉原有的cn-clip，使用immich的实现
-# PaddleOCR GPU版本依赖
-#paddlepaddle-gpu>=3.0.0  # PaddlePaddle GPU版本，支持CUDA
-paddleocr>=3.0.0  # PaddleOCR主包
+
+# PyTorch CPU版本 - 使用标准版本，不指定index-url
+torch>=2.0.0,<3.0.0
+torchvision>=0.15.0,<1.0.0
+
+# PaddleOCR CPU版本
+paddlepaddle>=2.5.0  # PaddlePaddle CPU版本
+paddleocr>=3.0.0
 
 # Immich机器学习模块依赖
 aiocache>=0.12.1,<1.0
@@ -24,4 +26,4 @@ pydantic>=2.0.0,<3
 pydantic-settings>=2.5.2,<3
 rich>=13.4.2
 tokenizers>=0.15.0,<1.0
-onnxruntime-gpu>=1.2.0,<2  # GPU版本用于CUDA支持
+onnxruntime>=1.15.0,<2  # CPU版本，去掉GPU支持
