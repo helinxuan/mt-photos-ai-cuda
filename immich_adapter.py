@@ -46,7 +46,6 @@ class ImmichAdapter:
         self.clip_model_name = settings.clip_model_name
         self.face_model_name = settings.face_model_name
         self.face_threshold = settings.face_threshold
-        self.face_max_distance = settings.face_max_distance
         
     def load_clip_visual_model(self):
         """加载CLIP视觉编码器"""
@@ -86,8 +85,7 @@ class ImmichAdapter:
                 self.face_model_name,
                 ModelType.DETECTION,
                 ModelTask.FACIAL_RECOGNITION,
-                minScore=self.face_threshold,
-                maxDistance=self.face_max_distance
+                minScore=self.face_threshold
             )
             if torch.cuda.is_available():
                 logger.info("Setting execution providers to ['CUDAExecutionProvider', 'CPUExecutionProvider'], in descending order of preference")

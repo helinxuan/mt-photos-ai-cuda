@@ -89,7 +89,6 @@ async def lifespan(app: FastAPI):
     logger.info(f"FACE_MODEL_NAME: {immich_adapter.face_model_name}")
     logger.info(f"CLIP_MODEL_NAME: {immich_adapter.clip_model_name}")
     logger.info(f"FACE_THRESHOLD: {immich_adapter.face_threshold}")
-    logger.info(f"FACE_MAX_DISTANCE: {immich_adapter.face_max_distance}")
     logger.info(f"DEVICE: {device}")
     logger.info(f"CUDA_AVAILABLE: {torch.cuda.is_available()}")
     # 输出ONNX Runtime执行提供程序信息
