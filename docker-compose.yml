@@ -22,4 +22,6 @@ services:
       - PYTHONHTTPSVERIFY=0
       - OMP_NUM_THREADS=4
       - MKL_NUM_THREADS=4
+    devices:
+      - /dev/dri:/dev/dri
     restart: unless-stopped
