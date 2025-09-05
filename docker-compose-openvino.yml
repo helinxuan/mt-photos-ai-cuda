@@ -1,0 +1,73 @@
+# Docker Compose for MT Photos AI - OpenVINO版本
+# 使用OpenVINO硬件加速，支持Intel CPU和集成显卡
+# 配置了完整的模型路径映射，避免重复下载
+name: mt-photos-ai-openvino
+
+services:
+  mt-photos-ai:
+    build:
+      context: .
+      dockerfile: Dockerfile.openvino
+    image: mt-photos-ai-openvino:latest
+    container_name: mt-photos-ai-openvino
+    ports:
+      - "3004:3004"
+    volumes:
+      # 映射本地模型缓存到容器，避免重复下载
+      - /opt/stacks/immich/model-cache:/model-cache
+      - /opt/stacks/immich/model-cache/paddleocr:/model-cache/paddleocr
+      - /opt/stacks/immich/model-cache/paddlex:/model-cache/paddlex
+      # 直接映射PaddleX默认路径到我们的缓存目录
+      - /opt/stacks/immich/model-cache/paddlex:/root/.paddlex/official_models
+    environment:
+      # 基础配置
+      - API_AUTH_KEY=mt_photos_ai_extra
+      - DEVICE=openvino
+      - LOG_LEVEL=INFO
+      
+      # OpenVINO 配置
+      - OPENVINO_DEVICE=AUTO     # 自动选择最佳设备（GPU/CPU）
+      - MACHINE_LEARNING_DEVICE_ID=0
+      
+      # 模型配置
+      - CLIP_MODEL_NAME=XLM-Roberta-Large-Vit-B-16Plus
+      - FACE_MODEL_NAME=antelopev2
+      - FACE_THRESHOLD=0.7
+      
+      # 路径配置 - 重要：指定模型路径
+      - MACHINE_LEARNING_CACHE_FOLDER=/model-cache
+      - PADDLEOCR_MODEL_DIR=/model-cache/paddleocr
+      - PADDLEX_HOME=/model-cache/paddlex
+      - PADDLEX_CACHE_DIR=/model-cache/paddlex
+      
+      # 性能优化
+      - OMP_NUM_THREADS=4
+      - MKL_NUM_THREADS=4
+      - MODEL_TTL=600            # 模型缓存时间
+      - SERVER_RESTART_TIME=600  # 服务重启时间
+      - AUTO_LOAD_TXT_MODAL=on   # 预加载文本模型
+      - MAX_BATCH_SIZE=1         # OpenVINO推荐批处理大小
+      
+      # 其他配置
+      - PYTHONHTTPSVERIFY=0
+      - ORT_DISABLE_STACK_PROTECTION=1  # 解决ONNX Runtime问题
+    devices:
+      - /dev/dri:/dev/dri
+      
+    restart: unless-stopped
+    
+    # 资源限制
+    deploy:
+      resources:
+        limits:
+          memory: 6G
+        reservations:
+          memory: 3G
+    
+    # 健康检查
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import requests; requests.get('http://localhost:3004/ping', headers={'Authorization': 'Bearer mt_photos_ai_extra'})"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s  # 给予足够时间下载模型

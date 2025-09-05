@@ -10,8 +10,12 @@ services:
     ports:
       - "3004:3004"
     volumes:
+      # 映射本地模型缓存到容器，避免重复下载
       - ./model-cache:/model-cache
       - ./model-cache/paddleocr:/model-cache/paddleocr
+      - ./model-cache/paddlex:/model-cache/paddlex
+      # 直接映射PaddleX默认路径到我们的缓存目录
+      - ./model-cache/paddlex:/root/.paddlex/official_models
     environment:
       - API_AUTH_KEY=mt_photos_ai_extra
       - CLIP_MODEL_NAME=nllb-clip-large-siglip__v1
@@ -22,6 +26,17 @@ services:
       - PYTHONHTTPSVERIFY=0
       - OMP_NUM_THREADS=4
       - MKL_NUM_THREADS=4
-    devices:
-      - /dev/dri:/dev/dri
+      # 路径配置 - 重要：指定模型路径
+      - MACHINE_LEARNING_CACHE_FOLDER=/model-cache
+      - PADDLEOCR_MODEL_DIR=/model-cache/paddleocr
+      - PADDLEX_HOME=/model-cache/paddlex
+      - PADDLEX_CACHE_DIR=/model-cache/paddlex
+      
+      # 性能优化配置
+      - MODEL_TTL=300
+      - SERVER_RESTART_TIME=600
+      - AUTO_LOAD_TXT_MODAL=on
+    # Windows不需要GPU设备映射，注释掉
+    # devices:
+    #   - /dev/dri:/dev/dri
     restart: unless-stopped

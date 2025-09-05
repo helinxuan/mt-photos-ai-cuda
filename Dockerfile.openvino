@@ -1,0 +1,73 @@
+FROM python:3.11-slim
+USER root
+
+# 更换为国内apt源
+RUN sed -i 's/deb.debian.org/mirrors.ustc.edu.cn/g' /etc/apt/sources.list.d/debian.sources && \
+    sed -i 's/security.debian.org/mirrors.ustc.edu.cn/g' /etc/apt/sources.list.d/debian.sources
+
+# 更新apt源并安装必要的系统依赖（包括OpenVINO所需的依赖）
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
+    patch \
+    libgl1-mesa-dev \
+    libglib2.0-0 \
+    libsm6 \
+    libxrender1 \
+    libfontconfig1 \
+    liblmdb-dev \
+    libgomp1 \
+    libopenblas-dev \
+    # OpenVINO相关依赖
+    libtbb-dev \
+    libtbb12 \
+    # Intel GPU驱动支持
+    ocl-icd-libopencl1 \
+    && rm -rf /var/lib/apt/lists/* && \
+    apt-get clean
+
+WORKDIR /app
+
+COPY requirements-openvino.txt .
+
+# 配置pip使用国内源
+RUN pip3 config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple/ && \
+    pip3 config set global.trusted-host pypi.tuna.tsinghua.edu.cn
+
+# 先安装PyTorch CPU版本
+RUN pip3 install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu
+
+# 再安装OpenVINO版本的依赖包
+RUN pip3 install --no-cache-dir -r requirements-openvino.txt
+
+ENV API_AUTH_KEY=mt_photos_ai_extra
+ENV CLIP_MODEL=ViT-B-16
+ENV DEVICE=openvino
+ENV OMP_NUM_THREADS=4
+ENV MKL_NUM_THREADS=4
+# OpenVINO特定环境变量
+ENV OPENVINO_DEVICE=AUTO
+ENV MACHINE_LEARNING_DEVICE_ID=0
+# 解决ONNX Runtime executable stack问题
+ENV ORT_DISABLE_STACK_PROTECTION=1
+# PaddleX模型缓存路径配置
+ENV PADDLEX_HOME=/model-cache/paddlex
+ENV PADDLEX_CACHE_DIR=/model-cache/paddlex
+
+# 模型会自动下载，无需手动复制
+# PaddleOCR和CLIP模型都会自动下载到缓存目录
+
+# 创建PaddleX符号链接，将默认路径重定向到缓存目录
+RUN mkdir -p /model-cache/paddlex && \
+    mkdir -p /root/.paddlex && \
+    ln -sf /model-cache/paddlex /root/.paddlex/official_models
+
+# 复制应用代码
+COPY server.py .
+COPY immich_adapter.py .
+COPY machine-learning ./machine-learning
+
+EXPOSE 3004
+
+CMD [ "python3", "/app/server.py" ]

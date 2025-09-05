@@ -58,18 +58,45 @@ def load_ocr_model():
     if ocr_model is None:
         logger.info("Loading OCR model 'PaddleOCR' to memory")
         
-        # 使用预置的模型，让PaddleOCR使用默认配置但不指定具体路径
-        # 这样PaddleOCR会自动处理模型加载
-        ocr_model = PaddleOCR(
-            use_angle_cls=True,              # 使用文字方向分类器
-            lang='ch'                        # 支持中英文
-        )
-        if torch.cuda.is_available():
-            logger.info("PaddleOCR initialized with GPU acceleration")
-        else:
-            logger.info("PaddleOCR initialized with CPU")
-        logger.info("PaddleOCR models will be automatically cached by the system")
-        # https://paddlepaddle.github.io/PaddleOCR/main/en/quick_start.html
+        try:
+            # 根据设备类型配置PaddleOCR
+            paddleocr_config = {
+                'use_angle_cls': True,  # 使用文字方向分类器
+                'lang': 'ch'           # 支持中英文
+            }
+            
+            # 如果有预置的PaddleOCR模型路径，使用它们
+            paddleocr_model_dir = os.getenv('PADDLEOCR_MODEL_DIR', '/model-cache/paddleocr')
+            if os.path.exists(paddleocr_model_dir):
+                logger.info(f"Using PaddleOCR models from: {paddleocr_model_dir}")
+                # 指定模型路径以避免重新下载
+                det_model_dir = os.path.join(paddleocr_model_dir, 'PP-OCRv5_server_det')
+                rec_model_dir = os.path.join(paddleocr_model_dir, 'PP-OCRv5_server_rec')
+                cls_model_dir = os.path.join(paddleocr_model_dir, 'PP-LCNet_x1_0_textline_ori')
+                
+                if os.path.exists(det_model_dir):
+                    paddleocr_config['det_model_dir'] = det_model_dir
+                if os.path.exists(rec_model_dir):
+                    paddleocr_config['rec_model_dir'] = rec_model_dir  
+                if os.path.exists(cls_model_dir):
+                    paddleocr_config['cls_model_dir'] = cls_model_dir
+            
+            ocr_model = PaddleOCR(**paddleocr_config)
+            
+            if device == "openvino":
+                logger.info("PaddleOCR initialized for OpenVINO environment")
+            elif torch.cuda.is_available():
+                logger.info("PaddleOCR initialized with GPU acceleration")
+            else:
+                logger.info("PaddleOCR initialized with CPU")
+            logger.info("PaddleOCR model loading completed")
+            
+        except Exception as e:
+            logger.error(f"Error loading PaddleOCR model: {e}")
+            # 尝试使用默认配置作为后备
+            logger.info("Falling back to default PaddleOCR configuration")
+            ocr_model = PaddleOCR(use_angle_cls=True, lang='ch')
+            logger.info("PaddleOCR fallback initialization completed")
 
 def load_clip_model():
     """预加载CLIP模型 - 使用immich适配器"""
