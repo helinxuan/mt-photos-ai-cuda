@@ -22,7 +22,7 @@ services:
       - FACE_MODEL_NAME=antelopev2
       - DEVICE=cpu
       - FACE_THRESHOLD=0.7
-      - LOG_LEVEL=INFO
+      - LOG_LEVEL=ERROR
       - PYTHONHTTPSVERIFY=0
       - OMP_NUM_THREADS=4
       - MKL_NUM_THREADS=4

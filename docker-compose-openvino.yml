@@ -23,7 +23,7 @@ services:
       # 基础配置
       - API_AUTH_KEY=mt_photos_ai_extra
       - DEVICE=openvino
-      - LOG_LEVEL=INFO
+      - LOG_LEVEL=ERROR
       
       # OpenVINO 配置
       - OPENVINO_DEVICE=AUTO     # 自动选择最佳设备（GPU/CPU）
