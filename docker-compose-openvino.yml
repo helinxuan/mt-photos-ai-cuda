@@ -32,7 +32,7 @@ services:
       # 模型配置
       - CLIP_MODEL_NAME=nllb-clip-large-siglip__v1
       - FACE_MODEL_NAME=antelopev2
-      - FACE_THRESHOLD=0.7
+      - FACE_THRESHOLD=0.75
       
       # 路径配置 - 重要：指定模型路径
       - MACHINE_LEARNING_CACHE_FOLDER=/model-cache
