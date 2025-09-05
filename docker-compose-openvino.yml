@@ -14,11 +14,11 @@ services:
       - "3004:3004"
     volumes:
       # 映射本地模型缓存到容器，避免重复下载
-      - /opt/stacks/immich/model-cache:/model-cache
-      - /opt/stacks/immich/model-cache/paddleocr:/model-cache/paddleocr
-      - /opt/stacks/immich/model-cache/paddlex:/model-cache/paddlex
+      - ./model-cache:/model-cache
+      - ./model-cache/paddleocr:/model-cache/paddleocr
+      - ./model-cache/paddlex:/model-cache/paddlex
       # 直接映射PaddleX默认路径到我们的缓存目录
-      - /opt/stacks/immich/model-cache/paddlex:/root/.paddlex/official_models
+      - ./model-cache/paddlex:/root/.paddlex/official_models
     environment:
       # 基础配置
       - API_AUTH_KEY=mt_photos_ai_extra
@@ -30,7 +30,7 @@ services:
       - MACHINE_LEARNING_DEVICE_ID=0
       
       # 模型配置
-      - CLIP_MODEL_NAME=XLM-Roberta-Large-Vit-B-16Plus
+      - CLIP_MODEL_NAME=nllb-clip-large-siglip__v1
       - FACE_MODEL_NAME=antelopev2
       - FACE_THRESHOLD=0.7
       
@@ -51,8 +51,9 @@ services:
       # 其他配置
       - PYTHONHTTPSVERIFY=0
       - ORT_DISABLE_STACK_PROTECTION=1  # 解决ONNX Runtime问题
-    devices:
-      - /dev/dri:/dev/dri
+    # Windows环境下不需要设备映射，注释掉
+    # devices:
+    #   - /dev/dri:/dev/dri
       
     restart: unless-stopped
     
